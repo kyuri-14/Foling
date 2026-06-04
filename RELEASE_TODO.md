@@ -24,17 +24,23 @@
 
 ## P1 — 品質・安全性(公開直後にユーザーが踏みやすい）
 
-- [ ] **React エラーバウンダリがない** — レンダリング例外で画面が真っ白になる。
-      トップに ErrorBoundary を入れ、復帰/再読み込み導線を用意。
-- [ ] **Rust の `unwrap()` / `expect()` 監査** — `lib.rs` に 5 箇所の `unwrap()`。
-      ユーザー入力・壊れた YAML・権限エラーで panic しないか確認し `Result` 化。
-- [ ] **未保存のまま終了する際の確認がない** — `onCloseRequested` で未保存変更を警告。
-- [ ] **クラッシュ復旧 / 自動保存がない** — 編集中データ保護(ジャーナル or 定期スナップショット)。
-- [ ] **Redo が未実装** — Undo はあるが Redo(Ctrl+Y / Ctrl+Shift+Z）がない。
-- [ ] **プラグインのセキュリティ** — 任意 JS を Worker で実行中。Worker は完全なサンドボックスではない
-      (fetch 等が可能)。導入時の警告・許可 UI、信頼できる配布元の明示、権限制限を検討。
-- [ ] **自動アップデート** — Tauri updater(署名鍵 + 配信エンドポイント)を設定。
-      導入しない場合は「手動ダウンロード更新」を README に明記。
+- [x] **React エラーバウンダリ** — `src/ErrorBoundary.tsx` を追加し `main.tsx` で全体をラップ。
+      例外時はメッセージ + スタック + 「再読み込み / 続行」導線を表示(白画面化を防止)。
+- [x] **Rust の `unwrap()` 監査** — ユーザー操作で到達し得る 2 箇所を堅牢化
+      (`extra_head_styles` は `if let`、プレビューサーバの Content-Type は失敗時フォールバック)。
+      残りは静的・不可侵(固定セレクタ/固定ヘッダ/`run().expect()`)のため据え置き。
+- [x] **保存付き終了確認** — `onCloseRequested` で未保存(config / tree / class)を検出し、
+      終了前に自動フラッシュしてから閉じる。保存失敗時は閉じずにエラー表示。
+      (capability に `core:window:allow-close/destroy` を追加)
+- [x] **自動保存(クラッシュ耐性)** — config / class ファイルは既に 500ms autosave 済み。
+      加えて autosave のパス競合バグ(選択切替直後に旧 config を別要素へ書く)を `configPathRef` で修正。
+- [x] **Redo 実装** — Undo/Redo を双方向スタック化(`performInverse`)。Ctrl+Y / Ctrl+Shift+Z 対応、
+      EDIT メニューに「やり直し」追加。新規操作で redo 履歴をクリア。
+- [x] **プラグイン実行の同意ゲート** — exporter(任意 JS 実行)の初回に警告つき確認を表示
+      (`foling.pluginConsent`)。「Worker は完全な隔離ではない/信頼できる提供元のみ」と明示。
+      ※ 真のサンドボックス化(権限制限・API 遮断)は今後の課題として残置。
+- [ ] **自動アップデート(要・インフラ)** — Tauri updater は署名鍵 + 配信エンドポイントが必要なため未実装。
+      当面は「手動ダウンロード更新」運用。導入時に `updater` プラグイン + 公開鍵を設定。
 
 ---
 

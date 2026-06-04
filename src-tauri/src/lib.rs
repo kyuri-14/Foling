@@ -522,8 +522,9 @@ fn render_node(
             }
         }
 
-        if inject_styles {
-            let styles = extra_head_styles.unwrap();
+        // `inject_styles` already implies Some(non-empty); use `if let` so a
+        // future change to that invariant can never turn into a panic here.
+        if let Some(styles) = extra_head_styles.filter(|s| !s.trim().is_empty()) {
             out.push_str(&"  ".repeat(depth + 1));
             out.push_str("<style>\n");
             for line in styles.lines() {
@@ -1490,14 +1491,18 @@ fn start_preview_server(state: Arc<PreviewState>) -> std::io::Result<u16> {
                         if canon.starts_with(&root_canon) && canon.is_file() {
                             if let Ok(data) = fs::read(&canon) {
                                 let mime = mime_for(&canon);
-                                let h = Header::from_bytes(
+                                // Don't unwrap: a bad Content-Type would panic
+                                // and kill the preview-server thread. Fall back
+                                // to sending the bytes without the header.
+                                let resp = Response::from_data(data);
+                                let resp = match Header::from_bytes(
                                     &b"Content-Type"[..],
                                     mime.as_bytes(),
-                                )
-                                .unwrap();
-                                let _ = request.respond(
-                                    Response::from_data(data).with_header(h),
-                                );
+                                ) {
+                                    Ok(h) => resp.with_header(h),
+                                    Err(_) => resp,
+                                };
+                                let _ = request.respond(resp);
                                 continue;
                             }
                         }

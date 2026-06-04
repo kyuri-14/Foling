@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   buildHtml,
   createNode,
@@ -49,6 +50,7 @@ type TabKey = "css" | "js" | "content" | "info" | "classes" | "images";
 
 const LAST_PROJECT_KEY = "foling.lastProject";
 const BROWSER_KEY = "foling.previewBrowser";
+const PLUGIN_CONSENT_KEY = "foling.pluginConsent";
 const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
 
 // Common CSS properties for autocomplete (alphabetical, not exhaustive).
@@ -1352,6 +1354,7 @@ export default function App() {
   const [info, setInfo] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [undoStack, setUndoStack] = useState<UndoAction[]>([]);
+  const [redoStack, setRedoStack] = useState<UndoAction[]>([]);
   // Tree editor state — flat row list edited in-memory; applied to disk
   // only on explicit RUN or Ctrl+S.
   const [rows, setRows] = useState<FlatRow[]>([]);
@@ -1503,7 +1506,25 @@ export default function App() {
         });
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      // Redo: Ctrl+Y or Ctrl+Shift+Z. Check before the plain Ctrl+Z below.
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key.toLowerCase() === "y" ||
+          (e.key.toLowerCase() === "z" && e.shiftKey))
+      ) {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName ?? "";
+        const isTreeInput = !!target?.classList?.contains("tree-row-input");
+        if ((tag === "TEXTAREA" || tag === "INPUT") && !isTreeInput) return;
+        e.preventDefault();
+        runRedo();
+        return;
+      }
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.key.toLowerCase() === "z" &&
+        !e.shiftKey
+      ) {
         const target = e.target as HTMLElement | null;
         const tag = target?.tagName ?? "";
         const isTreeInput = !!target?.classList?.contains("tree-row-input");
@@ -1551,6 +1572,7 @@ export default function App() {
     config,
     selectedPath,
     undoStack,
+    redoStack,
     projectRoot,
     activeTab,
     selectedClassFile,
@@ -1561,11 +1583,19 @@ export default function App() {
     tree,
   ]);
 
+  // Tracks which path the in-memory `config` was loaded for. Guards the
+  // autosave below against a race: right after the selection changes, `config`
+  // still briefly holds the PREVIOUS element's data (until readNode resolves)
+  // while `selectedPath` is already the new one — without this guard the
+  // debounced autosave could write element A's config into element B's folder.
+  const configPathRef = useRef<string | null>(null);
+
   // Load node config when selection changes
   useEffect(() => {
     if (!selectedPath) {
       setConfig(emptyConfig());
       setDirty(false);
+      configPathRef.current = null;
       return;
     }
     readNode(selectedPath)
@@ -1578,6 +1608,7 @@ export default function App() {
           links: c.links ?? [],
         });
         setDirty(false);
+        configPathRef.current = selectedPath;
       })
       .catch((e) => setError(String(e)));
   }, [selectedPath]);
@@ -1588,9 +1619,14 @@ export default function App() {
   const saveTimer = useRef<number | null>(null);
   useEffect(() => {
     if (!selectedPath || !dirty) return;
+    // Only autosave once `config` actually belongs to the selected path.
+    if (configPathRef.current !== selectedPath) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    const pathAtSchedule = selectedPath;
     saveTimer.current = window.setTimeout(() => {
-      writeNode(selectedPath, config)
+      // Re-check at fire time in case the selection moved during the debounce.
+      if (configPathRef.current !== pathAtSchedule) return;
+      writeNode(pathAtSchedule, config)
         .then(() => {
           setDirty(false);
           scheduleRebuild();
@@ -1601,6 +1637,56 @@ export default function App() {
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
   }, [config, dirty, selectedPath]);
+
+  // Flush every pending edit to disk. Kept in a ref (refreshed each render) so
+  // the window close handler — registered once — always sees current state.
+  const flushAllRef = useRef<() => Promise<void>>(async () => {});
+  flushAllRef.current = async () => {
+    if (treeDirty) await applyRows();
+    if (dirty && selectedPath) {
+      await writeNode(selectedPath, cleanForSave(config));
+    }
+    if (classFileDirty && selectedClassFile && projectRoot) {
+      await writeClassFile(projectRoot, selectedClassFile, classFileContent);
+    }
+  };
+  const hasUnsavedRef = useRef(false);
+  hasUnsavedRef.current = dirty || treeDirty || classFileDirty;
+
+  // Save-on-exit: intercept the window close, flush pending edits, then close.
+  // Autosave already persists most edits within 500ms; this catches the last
+  // sub-second of typing and un-applied tree reorders so nothing is lost.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    let closing = false;
+    (async () => {
+      try {
+        const win = getCurrentWindow();
+        const un = await win.onCloseRequested(async (event) => {
+          if (closing) return; // our own destroy() — let it through
+          if (!hasUnsavedRef.current) return; // nothing pending, allow close
+          event.preventDefault();
+          try {
+            await flushAllRef.current();
+            closing = true;
+            await win.destroy();
+          } catch (e) {
+            // Saving failed — keep the window open so the user can react.
+            setError(`終了前の保存に失敗しました: ${String(e)}`);
+          }
+        });
+        if (cancelled) un();
+        else unlisten = un;
+      } catch {
+        // Non-Tauri / unsupported context — skip silently.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
 
   async function openProject(root: string) {
     try {
@@ -2163,6 +2249,7 @@ export default function App() {
   // save the result to a user-picked file.
   async function runPluginExporter(plugin: LoadedPlugin, exp: ExporterDef) {
     if (!projectRoot || !tree) return;
+    if (!ensurePluginConsent()) return;
     try {
       if (treeDirty) {
         const result = await applyRows();
@@ -2187,6 +2274,22 @@ export default function App() {
     } catch (e) {
       setError(`エクスポート失敗: ${String(e)}`);
     }
+  }
+
+  // Plugins execute arbitrary JavaScript (in a Web Worker — which limits DOM
+  // access but is NOT a true security sandbox). Gate the first execution
+  // behind an explicit, one-time consent so users understand the risk before
+  // running third-party code.
+  function ensurePluginConsent(): boolean {
+    if (localStorage.getItem(PLUGIN_CONSENT_KEY) === "yes") return true;
+    const ok = window.confirm(
+      "プラグインは任意の JavaScript を実行します。\n" +
+        "Web Worker 内で実行されますが完全なサンドボックスではありません。\n" +
+        "信頼できる提供元のプラグインのみ実行してください。\n\n" +
+        "実行を許可しますか?(今後この確認は表示されません)"
+    );
+    if (ok) localStorage.setItem(PLUGIN_CONSENT_KEY, "yes");
+    return ok;
   }
 
   // Insert a plugin snippet into the active element's CSS / content.
@@ -2318,6 +2421,8 @@ export default function App() {
         ? { ...action, prevSelected: action.prevSelected ?? selectedPath }
         : action;
     setUndoStack((prev) => [...prev.slice(-49), enriched]);
+    // A brand-new action invalidates the redo history (standard semantics).
+    setRedoStack([]);
   }
 
   async function runUndo() {
@@ -2325,37 +2430,69 @@ export default function App() {
     const last = undoStack[undoStack.length - 1];
     setUndoStack((prev) => prev.slice(0, -1));
     try {
-      await applyUndo(last);
+      const inverse = await performInverse(last);
+      if (inverse) setRedoStack((prev) => [...prev.slice(-49), inverse]);
+      setInfo("元に戻しました");
     } catch (e) {
       setError(String(e));
     }
   }
 
-  async function applyUndo(action: UndoAction) {
+  async function runRedo() {
+    if (redoStack.length === 0) return;
+    const last = redoStack[redoStack.length - 1];
+    setRedoStack((prev) => prev.slice(0, -1));
+    try {
+      const inverse = await performInverse(last);
+      if (inverse) setUndoStack((prev) => [...prev.slice(-49), inverse]);
+      setInfo("やり直しました");
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  // Apply the reversal of `action` to disk and return the action that would
+  // reverse *this* operation (i.e. the inverse-of-the-inverse). Undo and redo
+  // both funnel through here: runUndo pushes the result onto the redo stack,
+  // runRedo pushes it back onto the undo stack. Returns null when the op can't
+  // be made reversible (e.g. a subtree we failed to snapshot before deleting).
+  async function performInverse(
+    action: UndoAction
+  ): Promise<UndoAction | null> {
     switch (action.type) {
-      case "create":
+      case "create": {
+        // Reverse a creation by deleting it — but snapshot first so redo can
+        // recreate the exact subtree (content + children).
+        let snapshot: NodeSnapshot | null = null;
+        try {
+          snapshot = await snapshotSubtree(action.path);
+        } catch {
+          snapshot = null;
+        }
+        const parent = action.path.split(/[\\/]/).slice(0, -1).join("\\");
         await deleteNode(action.path);
         await refreshTree();
-        // Re-select whatever was selected before this node was created and put
-        // the cursor back on its row. If that prior target no longer exists
-        // (e.g. it was itself undone), clearing to null is the safe fallback.
         setHighlightSourcePath(null);
         setSelectedPath(action.prevSelected ?? null);
         if (action.prevSelected) setTreeFocusPath(action.prevSelected);
-        setInfo("追加を取り消しました");
-        break;
-      case "delete":
-        await restoreSubtree(action.parentPath, action.snapshot);
+        return snapshot ? { type: "delete", parentPath: parent, snapshot } : null;
+      }
+      case "delete": {
+        const newPath = await restoreSubtree(action.parentPath, action.snapshot);
         await refreshTree();
-        setInfo("削除を取り消しました");
-        break;
+        setHighlightSourcePath(null);
+        setSelectedPath(newPath);
+        setTreeFocusPath(newPath);
+        return { type: "create", path: newPath };
+      }
       case "rename": {
         const newName = action.oldPath.split(/[\\/]/).pop() ?? "";
         const restored = await renameNode(action.newPath, newName);
-        if (selectedPath === action.newPath) setSelectedPath(restored);
         await refreshTree();
-        setInfo("リネームを取り消しました");
-        break;
+        setSelectedPath(restored);
+        setTreeFocusPath(restored);
+        // Inverse of "rename old→new" is "rename new→old" (swap endpoints).
+        return { type: "rename", oldPath: action.newPath, newPath: restored };
       }
     }
   }
@@ -2603,6 +2740,8 @@ export default function App() {
         canSave={!!selectedPath && dirty}
         canUndo={undoStack.length > 0}
         onUndo={runUndo}
+        canRedo={redoStack.length > 0}
+        onRedo={runRedo}
         hasProject={!!projectRoot}
       />
       {projectRoot ? (
@@ -2726,6 +2865,7 @@ function MenuBar(props: {
   onDelete: () => void;
   onRename: () => void;
   onUndo: () => void;
+  onRedo: () => void;
   onEditVariables: () => void;
   onEditDoctype: () => void;
   onEditHtmlAttrs: () => void;
@@ -2743,6 +2883,7 @@ function MenuBar(props: {
   canEdit: boolean;
   canSave: boolean;
   canUndo: boolean;
+  canRedo: boolean;
   hasProject: boolean;
 }) {
   const close = () => props.setMenu(null);
@@ -2776,6 +2917,9 @@ function MenuBar(props: {
       >
         <MenuOption onClick={props.onUndo} disabled={!props.canUndo}>
           元に戻す (Ctrl+Z)
+        </MenuOption>
+        <MenuOption onClick={props.onRedo} disabled={!props.canRedo}>
+          やり直し (Ctrl+Y)
         </MenuOption>
         <MenuOption onClick={props.onAddChild} disabled={!props.hasProject}>
           子要素を追加...
