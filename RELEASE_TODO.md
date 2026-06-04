@@ -66,12 +66,16 @@
 
 ## P3 — ドキュメント・配布
 
-- [ ] **HTFL 言語仕様書** — タグ規則・`config.yaml` スキーマ・変数・リンク・予約名・命名規則の正式仕様。
-- [ ] **README 拡充** — スクリーンショット、機能一覧、ビルド/リリース手順、ライセンス節を追加。
-- [ ] **プラグイン開発ドキュメント** — exporter / snippet / class-dict の API、`doc` の型定義、
-      サンプル(`sample-project/plugins/starter/`)の解説。
-- [ ] **CHANGELOG.md** — バージョンごとの変更履歴。
-- [ ] **(OSS 公開する場合)CONTRIBUTING / Issue・PR テンプレート / 行動規範**。
+- [x] **HTFL 言語仕様書** — `docs/HTFL-SPEC.md`。フォルダ命名・`config.yaml` / `htfl.yaml`
+      スキーマ・変数(`$name`)・CSS リセット・ビルド手順・予約名を実装どおりに記載。
+- [x] **README 拡充** — 機能一覧・ドキュメントリンク・スクリーンショット枠・
+      リリース/ライセンス節を追加(スクショ画像の差し込みは要対応)。
+- [x] **プラグイン開発ドキュメント** — `docs/PLUGINS.md`。`plugin.yaml` スキーマ、exporter API、
+      `doc`(tree / projectConfig / classFiles)の型、実行制約、サンプル解説。
+- [x] **CHANGELOG.md** — Keep a Changelog 形式で作成。
+- [x] **CONTRIBUTING.md** — 開発手順・検証・方針を記載。
+- [ ] **(任意)Issue / PR テンプレート / 行動規範** — `.github/` 配下に追加(P4 の CI 整備と同時が効率的)。
+- [ ] **スクリーンショット** — `docs/screenshot.png` を用意して README に差し込み(要・画像)。
 
 ---
 

@@ -1,6 +1,28 @@
 # Foling Editor
 
 HTFL (HyperText Foldering Language) 用のデスクトップエディター。
+HTML の DOM 構造を **フォルダ階層** で表現し、ツリー編集・CSS/本文編集・HTML 出力を行えます。
+
+> ライセンス: **GPL-3.0-or-later** ｜ 技術: **Tauri 2 · React · TypeScript · Rust**
+
+<!-- TODO: スクリーンショットを docs/ に置いてここに掲載 -->
+<!-- ![Foling Editor](docs/screenshot.png) -->
+
+## 主な機能
+
+- **フォルダ = 要素** の DOM ツリーエディタ(追加・並べ替え・コピー&ペースト)
+- 要素ごとの **CSS / 本文 / 属性 / クラス / リンク** 編集(自動保存)
+- プロジェクト **変数**(`$colorMain` など)と **CSS リセット**
+- **HTML エクスポート**(HTFL → 1 枚の .html)/ **インポート**(.html → HTFL)
+- **dev モード**: プレビューで要素をクリックすると対応する設定へジャンプ
+- **プラグイン**: エクスポータ(任意形式へ変換)・クラス辞書・スニペット
+- **検索**(Ctrl+Shift+F)、**Undo/Redo**、**ショートカット一覧**(HELP メニュー)
+
+## ドキュメント
+
+- [HTFL 言語仕様](docs/HTFL-SPEC.md) — フォルダ命名・`config.yaml` / `htfl.yaml` スキーマ・変数・ビルド
+- [プラグイン開発ガイド](docs/PLUGINS.md) — マニフェスト・エクスポータ API・`doc` 型
+- [変更履歴](CHANGELOG.md) ｜ [コントリビューション](CONTRIBUTING.md)
 
 ## HTFL とは
 
