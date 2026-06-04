@@ -1584,6 +1584,9 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // Remember the main window's size / position / maximized state between
+        // launches.
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(preview_state)
         .invoke_handler(tauri::generate_handler![
             read_tree,

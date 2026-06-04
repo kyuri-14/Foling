@@ -2227,3 +2227,171 @@ button.secondary {
 .crash-actions button:hover {
   filter: brightness(1.15);
 }
+
+/* ── P2 modals: settings / shortcuts / about / search ─────────────── */
+.settings-modal,
+.shortcuts-modal,
+.about-modal,
+.search-modal {
+  width: min(560px, 92vw);
+  max-height: 80vh;
+}
+.settings-body,
+.shortcuts-body,
+.about-body,
+.search-body {
+  padding: 16px 20px;
+  overflow: auto;
+}
+
+/* Settings */
+.settings-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid #333;
+}
+.settings-row:last-child {
+  border-bottom: none;
+}
+.settings-label strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.settings-label p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #999;
+  line-height: 1.5;
+}
+.settings-path {
+  word-break: break-all;
+  color: #8fb6da !important;
+}
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.settings-row button,
+.settings-toggle {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid #555;
+  background: #2a2a2a;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.settings-row button:hover:not(:disabled) {
+  filter: brightness(1.2);
+}
+.settings-row button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Shortcuts */
+.shortcuts-body table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.shortcuts-body td {
+  padding: 7px 8px;
+  border-bottom: 1px solid #2c2c2c;
+  font-size: 0.88rem;
+  vertical-align: top;
+}
+.shortcut-keys {
+  white-space: nowrap;
+  width: 40%;
+}
+.shortcuts-body kbd {
+  background: #000;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  color: #4ad9ee;
+}
+
+/* About */
+.about-body h2 {
+  margin: 0 0 4px;
+}
+.about-version {
+  color: #999;
+  margin: 0 0 12px;
+}
+.about-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+}
+.about-meta dt {
+  color: #999;
+}
+.about-meta dd {
+  margin: 0;
+}
+.about-copyright,
+.about-repo {
+  font-size: 0.82rem;
+  color: #888;
+  margin: 4px 0 0;
+  word-break: break-all;
+}
+
+/* Search */
+.search-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #555;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+.search-count {
+  font-size: 0.8rem;
+  color: #999;
+  margin: 8px 2px;
+}
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.search-hit {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #1e1e1e;
+  color: #fff;
+  cursor: pointer;
+}
+.search-hit:hover {
+  background: #2f4d6e;
+}
+.search-hit-tag {
+  font-family: ui-monospace, monospace;
+  color: #4ad9ee;
+}
+.search-hit-reason {
+  font-size: 0.78rem;
+  color: #999;
+  flex-shrink: 0;
+}

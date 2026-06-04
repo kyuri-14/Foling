@@ -52,6 +52,10 @@ const LAST_PROJECT_KEY = "foling.lastProject";
 const BROWSER_KEY = "foling.previewBrowser";
 const PLUGIN_CONSENT_KEY = "foling.pluginConsent";
 const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
+// Keep in sync with package.json / tauri.conf.json on release.
+const APP_VERSION = "0.1.0";
+// Set to the public repository URL once published (shown in the About dialog).
+const REPO_URL = "";
 
 // Common CSS properties for autocomplete (alphabetical, not exhaustive).
 const CSS_PROPERTIES = [
@@ -1337,8 +1341,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>("css");
   const [preview, setPreview] = useState<string | null>(null);
   const [menu, setMenu] = useState<
-    "file" | "edit" | "view" | "window" | "plugins" | null
+    "file" | "edit" | "view" | "window" | "plugins" | "help" | null
   >(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   // Close the top menu when the user clicks anywhere outside it.
   useEffect(() => {
     if (!menu) return;
@@ -1352,6 +1360,13 @@ export default function App() {
   }, [menu]);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // Auto-dismiss transient info toasts after a few seconds. Errors are sticky
+  // (user dismisses by clicking) since they may need action.
+  useEffect(() => {
+    if (!info) return;
+    const t = window.setTimeout(() => setInfo(null), 3500);
+    return () => window.clearTimeout(t);
+  }, [info]);
   const [dirty, setDirty] = useState(false);
   const [undoStack, setUndoStack] = useState<UndoAction[]>([]);
   const [redoStack, setRedoStack] = useState<UndoAction[]>([]);
@@ -1504,6 +1519,17 @@ export default function App() {
             setInfo("保存対象がありません");
           }
         });
+        return;
+      }
+      // Project-wide search: Ctrl+Shift+F.
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "f"
+      ) {
+        if (!projectRoot) return;
+        e.preventDefault();
+        setShowSearch(true);
         return;
       }
       // Redo: Ctrl+Y or Ctrl+Shift+Z. Check before the plain Ctrl+Z below.
@@ -2742,6 +2768,10 @@ export default function App() {
         onUndo={runUndo}
         canRedo={redoStack.length > 0}
         onRedo={runRedo}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenShortcuts={() => setShowShortcuts(true)}
+        onOpenAbout={() => setShowAbout(true)}
+        onOpenSearch={() => setShowSearch(true)}
         hasProject={!!projectRoot}
       />
       {projectRoot ? (
@@ -2840,22 +2870,65 @@ export default function App() {
         />
       )}
       {error && (
-        <div className="toast toast-error" onClick={() => setError(null)}>
+        <div
+          className="toast toast-error"
+          role="alert"
+          onClick={() => setError(null)}
+          title="クリックで閉じる"
+        >
           ⚠ {error}
         </div>
       )}
       {info && !error && (
-        <div className="toast toast-info" onClick={() => setInfo(null)}>
+        <div
+          className="toast toast-info"
+          role="status"
+          aria-live="polite"
+          onClick={() => setInfo(null)}
+        >
           {info}
         </div>
+      )}
+      {showSettings && (
+        <SettingsModal
+          cssResetOn={(projectConfig.css_reset ?? true) !== false}
+          hasProject={!!projectRoot}
+          browserPath={browserPath}
+          onToggleCssReset={toggleCssReset}
+          onPickBrowser={pickBrowser}
+          onClearBrowser={clearBrowser}
+          onResetPluginConsent={() => {
+            localStorage.removeItem(PLUGIN_CONSENT_KEY);
+            setInfo("プラグイン実行の許可をリセットしました");
+          }}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+      {showShortcuts && (
+        <ShortcutsModal onClose={() => setShowShortcuts(false)} />
+      )}
+      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {showSearch && tree && (
+        <SearchModal
+          tree={tree}
+          onJump={(p) => {
+            setSelectedPath(p);
+            setHighlightSourcePath(null);
+            setTreeFocusPath(p);
+            setShowSearch(false);
+          }}
+          onClose={() => setShowSearch(false)}
+        />
       )}
     </div>
   );
 }
 
 function MenuBar(props: {
-  menu: "file" | "edit" | "view" | "window" | "plugins" | null;
-  setMenu: (m: "file" | "edit" | "view" | "window" | "plugins" | null) => void;
+  menu: "file" | "edit" | "view" | "window" | "plugins" | "help" | null;
+  setMenu: (
+    m: "file" | "edit" | "view" | "window" | "plugins" | "help" | null
+  ) => void;
   onOpen: () => void;
   onNew: () => void;
   onSave: () => void;
@@ -2880,6 +2953,10 @@ function MenuBar(props: {
   onOpenPlugins: () => void;
   onReloadPlugins: () => void;
   onRunExporter: (plugin: LoadedPlugin, exp: ExporterDef) => void;
+  onOpenSettings: () => void;
+  onOpenShortcuts: () => void;
+  onOpenAbout: () => void;
+  onOpenSearch: () => void;
   canEdit: boolean;
   canSave: boolean;
   canUndo: boolean;
@@ -2930,6 +3007,10 @@ function MenuBar(props: {
         <MenuOption onClick={props.onDelete} disabled={!props.canEdit}>
           削除...
         </MenuOption>
+        <div className="menu-divider" />
+        <MenuOption onClick={props.onOpenSearch} disabled={!props.hasProject}>
+          検索... (Ctrl+Shift+F)
+        </MenuOption>
       </MenuItem>
       <MenuItem
         label="VIEW"
@@ -2977,6 +3058,8 @@ function MenuBar(props: {
         >
           既定のブラウザに戻す
         </MenuOption>
+        <div className="menu-divider" />
+        <MenuOption onClick={props.onOpenSettings}>設定...</MenuOption>
       </MenuItem>
       <MenuItem
         label="PLUGINS"
@@ -3001,6 +3084,18 @@ function MenuBar(props: {
             </MenuOption>
           ))
         )}
+      </MenuItem>
+      <MenuItem
+        label="HELP"
+        open={props.menu === "help"}
+        onOpen={() => props.setMenu(props.menu === "help" ? null : "help")}
+      >
+        <MenuOption onClick={props.onOpenShortcuts}>
+          キーボードショートカット...
+        </MenuOption>
+        <MenuOption onClick={props.onOpenAbout}>
+          Foling Editor について...
+        </MenuOption>
       </MenuItem>
     </div>
   );
@@ -5263,6 +5358,292 @@ function PluginsModal(props: {
         </div>
         <div className="plugins-foot">
           ⚠ プラグインの JS はワーカー内で実行されますが、信頼できるものだけ導入してください。
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Close a modal when Escape is pressed. Shared by the P2 modals.
+function useEscClose(onClose: () => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+}
+
+function SettingsModal(props: {
+  cssResetOn: boolean;
+  hasProject: boolean;
+  browserPath: string | null;
+  onToggleCssReset: () => void;
+  onPickBrowser: () => void;
+  onClearBrowser: () => void;
+  onResetPluginConsent: () => void;
+  onClose: () => void;
+}) {
+  useEscClose(props.onClose);
+  return (
+    <div className="modal-bg" onClick={props.onClose}>
+      <div
+        className="modal settings-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="設定"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <span>設定</span>
+          <button aria-label="閉じる" onClick={props.onClose}>
+            ×
+          </button>
+        </div>
+        <div className="settings-body">
+          <section className="settings-row">
+            <div className="settings-label">
+              <strong>CSS リセット</strong>
+              <p>
+                margin / padding / list-style 等のブラウザ既定を無効化します
+                (プロジェクト単位)。
+              </p>
+            </div>
+            <button
+              className="settings-toggle"
+              disabled={!props.hasProject}
+              onClick={props.onToggleCssReset}
+            >
+              {props.cssResetOn ? "ON ✓" : "OFF (ブラウザ既定)"}
+            </button>
+          </section>
+
+          <section className="settings-row">
+            <div className="settings-label">
+              <strong>プレビュー用ブラウザ</strong>
+              <p className="settings-path">
+                {props.browserPath ?? "(OS の既定ブラウザ)"}
+              </p>
+            </div>
+            <div className="settings-actions">
+              <button onClick={props.onPickBrowser}>指定...</button>
+              <button
+                disabled={!props.browserPath}
+                onClick={props.onClearBrowser}
+              >
+                既定に戻す
+              </button>
+            </div>
+          </section>
+
+          <section className="settings-row">
+            <div className="settings-label">
+              <strong>プラグイン実行の許可</strong>
+              <p>
+                プラグインは任意の JavaScript を実行します。許可状態をリセット
+                すると、次回実行時に再度確認します。
+              </p>
+            </div>
+            <button onClick={props.onResetPluginConsent}>
+              許可をリセット
+            </button>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SHORTCUTS: { keys: string; desc: string }[] = [
+  { keys: "Ctrl+S", desc: "保存 (ツリー / 選択要素 / クラスファイル)" },
+  { keys: "Ctrl+Z", desc: "元に戻す" },
+  { keys: "Ctrl+Y / Ctrl+Shift+Z", desc: "やり直し" },
+  { keys: "Ctrl+Shift+F", desc: "プロジェクト内を検索" },
+  { keys: "Enter", desc: "ツリー: 子要素を追加" },
+  { keys: "Shift+Enter", desc: "ツリー: 同階層に追加 / 空行ならインデント解除" },
+  { keys: "Tab / Shift+Tab", desc: "ツリー: インデントを上げる / 下げる" },
+  { keys: "Backspace (空行)", desc: "ツリー: インデント解除 / 行を削除" },
+  { keys: "↑ / ↓", desc: "ツリー: 行間を移動" },
+  { keys: "Alt+↑ / ↓ / ← / →", desc: "ツリー: 選択行を移動 / 階層変更" },
+  { keys: "Ctrl+C / Ctrl+V", desc: "ツリー: 要素をサブツリーごとコピー / 貼り付け" },
+  { keys: "Esc", desc: "ダイアログ / 予測変換を閉じる" },
+];
+
+function ShortcutsModal(props: { onClose: () => void }) {
+  useEscClose(props.onClose);
+  return (
+    <div className="modal-bg" onClick={props.onClose}>
+      <div
+        className="modal shortcuts-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="キーボードショートカット"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <span>キーボードショートカット</span>
+          <button aria-label="閉じる" onClick={props.onClose}>
+            ×
+          </button>
+        </div>
+        <div className="shortcuts-body">
+          <table>
+            <tbody>
+              {SHORTCUTS.map((s) => (
+                <tr key={s.keys}>
+                  <td className="shortcut-keys">
+                    <kbd>{s.keys}</kbd>
+                  </td>
+                  <td>{s.desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AboutModal(props: { onClose: () => void }) {
+  useEscClose(props.onClose);
+  return (
+    <div className="modal-bg" onClick={props.onClose}>
+      <div
+        className="modal about-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Foling Editor について"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <span>Foling Editor について</span>
+          <button aria-label="閉じる" onClick={props.onClose}>
+            ×
+          </button>
+        </div>
+        <div className="about-body">
+          <h2>Foling Editor</h2>
+          <p className="about-version">バージョン {APP_VERSION}</p>
+          <p>
+            HTFL (HyperText Foldering Language) —
+            フォルダ構造で HTML を表現するための言語のデスクトップエディタ。
+          </p>
+          <dl className="about-meta">
+            <dt>ライセンス</dt>
+            <dd>GPL-3.0-or-later</dd>
+            <dt>技術</dt>
+            <dd>Tauri 2 · React · TypeScript · Rust</dd>
+          </dl>
+          <p className="about-copyright">© 2026 大松雄斗</p>
+          {REPO_URL && <p className="about-repo">{REPO_URL}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface SearchHit {
+  path: string;
+  label: string;
+  reason: string;
+}
+
+// Walk the in-memory tree and collect nodes matching the query against the
+// tag name, id, classes, text content, and CSS. Purely client-side (no disk
+// access) since read_tree already loaded every node's config.
+function searchTree(root: TreeNode, queryRaw: string): SearchHit[] {
+  const q = queryRaw.trim().toLowerCase();
+  if (!q) return [];
+  const hits: SearchHit[] = [];
+  const walk = (n: TreeNode, depth: number) => {
+    if (depth > 0) {
+      const cfg = n.config ?? ({} as NodeConfig);
+      const tag = (n.display_name || n.name || "").toLowerCase();
+      const id = (cfg.id ?? "").toLowerCase();
+      const classes = (cfg.classes ?? []).join(" ").toLowerCase();
+      const content = (cfg.content ?? "").toLowerCase();
+      const css = (cfg.css ?? "").toLowerCase();
+      let reason = "";
+      if (tag.includes(q)) reason = "タグ名";
+      else if (id.includes(q)) reason = `id="${cfg.id}"`;
+      else if (classes.includes(q)) reason = `class: ${(cfg.classes ?? []).join(" ")}`;
+      else if (content.includes(q)) reason = "本文";
+      else if (css.includes(q)) reason = "CSS";
+      if (reason) {
+        hits.push({
+          path: n.path,
+          label: n.display_name || n.name,
+          reason,
+        });
+      }
+    }
+    for (const c of n.children ?? []) walk(c, depth + 1);
+  };
+  walk(root, 0);
+  return hits.slice(0, 200);
+}
+
+function SearchModal(props: {
+  tree: TreeNode;
+  onJump: (path: string) => void;
+  onClose: () => void;
+}) {
+  useEscClose(props.onClose);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+  const hits = useMemo(() => searchTree(props.tree, query), [props.tree, query]);
+  return (
+    <div className="modal-bg" onClick={props.onClose}>
+      <div
+        className="modal search-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="プロジェクト内検索"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <span>検索 (タグ名 / id / class / 本文 / CSS)</span>
+          <button aria-label="閉じる" onClick={props.onClose}>
+            ×
+          </button>
+        </div>
+        <div className="search-body">
+          <input
+            ref={inputRef}
+            className="search-input"
+            value={query}
+            placeholder="検索キーワード..."
+            spellCheck={false}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && hits.length > 0) {
+                props.onJump(hits[0].path);
+              }
+            }}
+          />
+          <div className="search-count">
+            {query.trim()
+              ? `${hits.length} 件${hits.length >= 200 ? " (上限)" : ""}`
+              : "キーワードを入力してください"}
+          </div>
+          <div className="search-results">
+            {hits.map((h) => (
+              <button
+                key={h.path}
+                className="search-hit"
+                onClick={() => props.onJump(h.path)}
+                title={h.path}
+              >
+                <span className="search-hit-tag">&lt;{h.label}&gt;</span>
+                <span className="search-hit-reason">{h.reason}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
