@@ -1,0 +1,11 @@
+classes:
+- site-header
+- topMenu
+available_classes:
+- topMenu
+css: |+
+  padding: 1rem 2rem;
+  background-color: $colorMain;
+  color: #fff;
+  position: relative;
+

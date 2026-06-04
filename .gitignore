@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+
+# Rust / Tauri
+src-tauri/target
+src-tauri/gen/schemas
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Local agent / tooling state (machine-local paths, permissions, secrets)
+.claude/settings.local.json

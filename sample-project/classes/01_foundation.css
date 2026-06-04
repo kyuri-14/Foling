@@ -1,0 +1,6 @@
+/* 01_foundation.css — リセット・ベース */
+
+html, body {
+  margin: 0;
+  padding: 0;
+}

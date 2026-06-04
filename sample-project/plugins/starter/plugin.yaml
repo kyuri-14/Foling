@@ -1,0 +1,39 @@
+name: Starter
+version: 0.1.0
+description: サンプルプラグイン — JSX エクスポータ + ユーティリティクラス辞書 + スニペット
+
+exporters:
+  - id: jsx
+    label: JSX (React) で書き出し
+    script: jsx.js
+    extension: jsx
+
+classes:
+  - name: flex
+    description: "display: flex"
+  - name: flex-center
+    description: "flex + 中央寄せ"
+  - name: container
+    description: "max-width コンテナ"
+  - name: hidden
+    description: "display: none"
+  - name: sr-only
+    description: "視覚的に隠す (スクリーンリーダー用)"
+
+snippets:
+  - name: Flexbox 中央寄せ
+    kind: css
+    body: |
+      display: flex;
+      align-items: center;
+      justify-content: center;
+  - name: 絶対中央配置
+    kind: css
+    body: |
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+  - name: Lorem テキスト
+    kind: content
+    body: "ここにテキストが入ります。"
