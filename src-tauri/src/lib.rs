@@ -1617,3 +1617,54 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_tag_known_unknown_custom() {
+        assert_eq!(resolve_tag("section"), "section");
+        assert_eq!(resolve_tag("DIV"), "div"); // lowercased
+        assert_eq!(resolve_tag("totally-unknown"), "totally-unknown"); // custom (has '-')
+        assert_eq!(resolve_tag("wat"), "div"); // unknown → div
+        assert_eq!(resolve_tag(""), "div"); // empty → div
+    }
+
+    #[test]
+    fn split_prefix_parses_nn() {
+        assert_eq!(split_prefix("02_section"), (Some(2), "section"));
+        assert_eq!(split_prefix("10_div"), (Some(10), "div"));
+        assert_eq!(split_prefix("header"), (None, "header"));
+        // non-numeric prefix is not an ordinal
+        assert_eq!(split_prefix("x_y"), (None, "x_y"));
+    }
+
+    #[test]
+    fn substitute_vars_replaces_known_keeps_unknown() {
+        let mut vars = BTreeMap::new();
+        vars.insert("colorMain".to_string(), "#39b54a".to_string());
+        assert_eq!(
+            substitute_vars("background: $colorMain;", &vars),
+            "background: #39b54a;"
+        );
+        // unknown variable is left verbatim
+        assert_eq!(substitute_vars("$nope end", &vars), "$nope end");
+        // a lone '$' (no name) is preserved
+        assert_eq!(substitute_vars("price $ 5", &vars), "price $ 5");
+    }
+
+    #[test]
+    fn escape_helpers() {
+        assert_eq!(escape_html("a<b>&c"), "a&lt;b&gt;&amp;c");
+        assert_eq!(escape_attr("x\"y<z"), "x&quot;y&lt;z");
+    }
+
+    #[test]
+    fn mime_for_common_extensions() {
+        assert_eq!(mime_for(Path::new("a/b.png")), "image/png");
+        assert_eq!(mime_for(Path::new("style.CSS")), "text/css; charset=utf-8");
+        assert_eq!(mime_for(Path::new("x.unknownext")), "application/octet-stream");
+        assert_eq!(mime_for(Path::new("noext")), "application/octet-stream");
+    }
+}

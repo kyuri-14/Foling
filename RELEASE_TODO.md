@@ -81,12 +81,19 @@
 
 ## P4 — テスト・保守性(長期運用の土台）
 
-- [ ] **CI/CD が未整備(`.github` なし）** — lint + 型チェック + ビルド、
-      タグ push で各 OS バイナリを自動ビルド & Release。
-- [ ] **テストが皆無** — Rust ユニット(`read_tree` / `build_html` / import / export / NN 採番 / 変数置換）、
-      フロント(`rowsToParsedTree` / ツリー差分 / `syncRowsFromTree`)、最低限の E2E。
-- [ ] **`App.tsx` が 5360 行の単一ファイル** — コンポーネント / フック / ユーティリティへ分割。
-- [ ] **`bundle.targets: "all"` の見直し** — リリースする OS / 形式(msi, nsis, dmg, deb 等)を明示。
+- [x] **CI/CD** — `.github/workflows/ci.yml`(push/PR: 型チェック・vitest・vite build・cargo test)と
+      `release.yml`(`v*` タグで各 OS のインストーラをビルドし Release を下書き作成、tauri-action)。
+      Issue / PR テンプレートも追加。
+- [x] **テスト導入** — Vitest を追加。
+      - フロント: `src/treeModel.test.ts`(15 件) — `rowsToParsedTree` / NN 採番 / `getVisibleRows` /
+        `findSubtreeRange` / `nnOf` / `basenameOf` など。
+      - Rust: `lib.rs` の `#[cfg(test)]`(5 件) — `resolve_tag` / `split_prefix` / `substitute_vars` /
+        `escape_*` / `mime_for`。
+      - ⏳ 残: `read_tree` / `build_html` / import-export の結合テスト(tempdir フィクスチャ)、E2E。
+- [~] **`App.tsx` の分割(着手)** — 純粋なツリーモデルを `src/treeModel.ts` に抽出(テスト可能化)。
+      残: エディタ各パネル・フック・API ラッパのコンポーネント分割。
+- [x] **`bundle.targets` の方針確定** — `"all"` はホスト OS で生成可能な形式すべてを意味し、
+      OS ごとに CI(release.yml)でビルドするため妥当。現状維持。
 
 ---
 
