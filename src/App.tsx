@@ -49,6 +49,7 @@ import {
   LoadedPlugin,
   SnippetEntry,
   emptyConfig,
+  HeadConfig,
   NodeConfig,
   NodeSnapshot,
   ProjectConfig,
@@ -56,7 +57,7 @@ import {
   UndoAction,
 } from "./types";
 
-type TabKey = "css" | "js" | "content" | "info" | "classes" | "images";
+type TabKey = "css" | "js" | "classes";
 
 const LAST_PROJECT_KEY = "foling.lastProject";
 const BROWSER_KEY = "foling.previewBrowser";
@@ -1259,6 +1260,11 @@ export default function App() {
   // One-shot request to move keyboard focus onto a tree row (by path). Set
   // e.g. after undo so the cursor lands back on the restored selection.
   const [treeFocusPath, setTreeFocusPath] = useState<string | null>(null);
+  // Element editor modal (opened by a tree row's ✎ button). Holds the row's
+  // line number (= the element's id) for the title; null = closed.
+  const [elementEdit, setElementEdit] = useState<{ lineNumber: number } | null>(
+    null
+  );
   // Which top-level container the DOM tree is showing. Default is body,
   // since head is metadata (title/meta/link) — a different editing concern.
   const [treeView, setTreeView] = useState<"body" | "head">("body");
@@ -1272,6 +1278,9 @@ export default function App() {
   // Kept for backward compatibility; the CLASSES tab supersedes it.
   const [showClassesModal] = useState(false);
   const [showVarsModal, setShowVarsModal] = useState(false);
+  const [showHeadDefault, setShowHeadDefault] = useState(false);
+  const [showHeadProjectTags, setShowHeadProjectTags] = useState(false);
+  const [htmlLang, setHtmlLang] = useState("ja");
   const [browserPath, setBrowserPath] = useState<string | null>(() =>
     localStorage.getItem(BROWSER_KEY)
   );
@@ -1590,6 +1599,8 @@ export default function App() {
       const cf = await readClassFiles(root);
       const imgs = await readImageFolders(root);
       const plg = await readPlugins(root).catch(() => []);
+      const htmlNode = await readNode(t.path).catch(() => null);
+      setHtmlLang(htmlNode?.attributes?.lang ?? "ja");
       setProjectRoot(root);
       setPlugins(plg);
       setTree(t);
@@ -1781,6 +1792,23 @@ export default function App() {
       setSelectedPath(updated.actualPath);
       setHighlightSourcePath(null);
     }
+  }
+
+  // Open the element editor modal (content / image / attributes) for a row.
+  // Selects the row first (flushing it to disk if it's a brand-new row) so the
+  // config loads, then shows the modal titled with the line number (= id).
+  async function openElementEditor(row: FlatRow, lineNumber: number) {
+    if (row.actualPath) {
+      setSelectedPath(row.actualPath);
+      setHighlightSourcePath(null);
+    } else {
+      const result = await applyRows();
+      const updated = result.rows?.find((r) => r.id === row.id);
+      if (!updated?.actualPath) return;
+      setSelectedPath(updated.actualPath);
+      setHighlightSourcePath(null);
+    }
+    setElementEdit({ lineNumber });
   }
 
   // Apply current rows to the disk tree (rename / create / delete).
@@ -2494,7 +2522,7 @@ export default function App() {
     }
     setSelectedPath(path);
     setHighlightSourcePath(null);
-    if (activeTab === "classes" || activeTab === "images") {
+    if (activeTab === "classes") {
       setActiveTab("css");
     }
   }
@@ -2531,6 +2559,45 @@ export default function App() {
     }
   }
 
+  // Merge a patch into the project-level <head> config (htfl.yaml). Empty
+  // strings are dropped so cleared fields disappear from the YAML.
+  async function saveHeadConfig(patch: Partial<HeadConfig>) {
+    if (!projectRoot) return;
+    const merged: HeadConfig = { ...(projectConfig.head ?? {}), ...patch };
+    for (const k of Object.keys(merged) as (keyof HeadConfig)[]) {
+      if (!merged[k] || merged[k] === "") delete merged[k];
+    }
+    const cfg = { ...projectConfig, head: merged };
+    try {
+      await writeProjectConfig(projectRoot, cfg);
+      setProjectConfig(cfg);
+      setInfo("HEAD 設定を保存しました");
+      scheduleRebuild();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  // The <html lang> lives on the HTML/ folder config, not htfl.yaml, so it's
+  // saved separately from the head config.
+  async function saveHtmlLang(lang: string) {
+    if (!projectRoot || !tree) return;
+    try {
+      const htmlPath = tree.path;
+      const cur = await readNode(htmlPath);
+      const nextConfig: NodeConfig = {
+        ...cur,
+        attributes: { ...(cur.attributes ?? {}), lang },
+        classes: cur.classes ?? [],
+        links: cur.links ?? [],
+      };
+      await writeNode(htmlPath, cleanForSave(nextConfig));
+      scheduleRebuild();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   // Toggle the project-level CSS reset. Undefined defaults to ON, so the
   // first toggle from a fresh project flips to false (browser defaults).
   async function toggleCssReset() {
@@ -2545,6 +2612,25 @@ export default function App() {
         next
           ? "CSS リセット: ON (margin / padding / list-style 等を初期化)"
           : "CSS リセット: OFF (ブラウザ既定スタイルに復帰)"
+      );
+      scheduleRebuild();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  // Output mode: "ssr+js" (default, emits the SCRIPT/JS layer) ⇄ "ssr"
+  // (static only — page works with JavaScript disabled).
+  async function setOutputMode(mode: "ssr" | "ssr+js") {
+    if (!projectRoot) return;
+    const cfg = { ...projectConfig, output_mode: mode };
+    try {
+      await writeProjectConfig(projectRoot, cfg);
+      setProjectConfig(cfg);
+      setInfo(
+        mode === "ssr"
+          ? "出力モード: SSR (静的・JS なしでも表示)"
+          : "出力モード: SSR + JS (動的・SCRIPT を出力)"
       );
       scheduleRebuild();
     } catch (e) {
@@ -2618,6 +2704,8 @@ export default function App() {
         onEditVariables={editVariables}
         onEditDoctype={editDoctype}
         onEditHtmlAttrs={editHtmlAttrs}
+        onEditHeadDefault={() => setShowHeadDefault(true)}
+        onEditHeadProjectTags={() => setShowHeadProjectTags(true)}
         onToggleCssReset={toggleCssReset}
         cssResetOn={projectConfig.css_reset !== false}
         onOpenClasses={() => setActiveTab("classes")}
@@ -2662,6 +2750,7 @@ export default function App() {
             onCommitRowEdit={commitRowEdit}
             onCopySubtree={copyRowToClipboard}
             onPasteSubtree={pasteRowSubtree}
+            onEditRow={openElementEditor}
             hasClipboard={treeClipboard !== null}
             focusPath={treeFocusPath}
             onFocused={() => setTreeFocusPath(null)}
@@ -2736,6 +2825,50 @@ export default function App() {
           }}
         />
       )}
+      {elementEdit && selectedPath && (
+        <ElementEditModal
+          lineNumber={elementEdit.lineNumber}
+          tag={(
+            config.tag ??
+            rows.find((r) => r.actualPath === selectedPath)?.name ??
+            ""
+          ).toLowerCase()}
+          config={config}
+          update={update}
+          imageFolders={imageFolders}
+          selectedImageFolder={selectedImageFolder}
+          onSelectImageFolder={setSelectedImageFolder}
+          previewBaseUrl={previewBaseUrl}
+          onApplyImage={applyImageToElement}
+          onReloadImages={reloadImageFolders}
+          onClose={() => setElementEdit(null)}
+        />
+      )}
+      {showHeadDefault && (
+        <HeadDefaultModal
+          head={projectConfig.head ?? {}}
+          lang={htmlLang}
+          onClose={() => setShowHeadDefault(false)}
+          onSave={async (patch, lang) => {
+            await saveHeadConfig(patch);
+            if (lang !== htmlLang) {
+              setHtmlLang(lang);
+              await saveHtmlLang(lang);
+            }
+            setShowHeadDefault(false);
+          }}
+        />
+      )}
+      {showHeadProjectTags && (
+        <HeadProjectTagsModal
+          head={projectConfig.head ?? {}}
+          onClose={() => setShowHeadProjectTags(false)}
+          onSave={async (patch) => {
+            await saveHeadConfig(patch);
+            setShowHeadProjectTags(false);
+          }}
+        />
+      )}
       {error && (
         <div
           className="toast toast-error"
@@ -2759,6 +2892,8 @@ export default function App() {
       {showSettings && (
         <SettingsModal
           cssResetOn={(projectConfig.css_reset ?? true) !== false}
+          outputMode={projectConfig.output_mode === "ssr" ? "ssr" : "ssr+js"}
+          onSetOutputMode={setOutputMode}
           hasProject={!!projectRoot}
           browserPath={browserPath}
           onToggleCssReset={toggleCssReset}
@@ -2824,6 +2959,8 @@ function MenuBar(props: {
   onOpenShortcuts: () => void;
   onOpenAbout: () => void;
   onOpenSearch: () => void;
+  onEditHeadDefault: () => void;
+  onEditHeadProjectTags: () => void;
   canEdit: boolean;
   canSave: boolean;
   canUndo: boolean;
@@ -2842,6 +2979,20 @@ function MenuBar(props: {
         <MenuOption onClick={props.onOpen}>プロジェクトを開く...</MenuOption>
         <MenuOption onClick={props.onSave} disabled={!props.canSave}>
           保存 (Ctrl+S)
+        </MenuOption>
+        <div className="menu-divider" />
+        <div className="menu-section-label">HEAD</div>
+        <MenuOption
+          onClick={props.onEditHeadDefault}
+          disabled={!props.hasProject}
+        >
+          DEFAULT (charset / viewport / lang)...
+        </MenuOption>
+        <MenuOption
+          onClick={props.onEditHeadProjectTags}
+          disabled={!props.hasProject}
+        >
+          PROJECT TAGS (title / 説明 / OGP / favicon)...
         </MenuOption>
         <div className="menu-divider" />
         <MenuOption onClick={props.onImportHtml}>
@@ -3062,6 +3213,9 @@ function TreeEditorPanel(props: {
   onCopySubtree: (row: FlatRow) => void;
   /** Restore the clipboard subtree as a sibling of `row`. */
   onPasteSubtree: (row: FlatRow) => void;
+  /** Open the element editor (content / image / attributes) for a row.
+   *  `lineNumber` is the row's 1-based line = the element's id. */
+  onEditRow: (row: FlatRow, lineNumber: number) => void;
   /** True if there's a subtree on the clipboard available to paste. */
   hasClipboard: boolean;
   /** When set, focus the row whose actualPath matches (e.g. after undo, to
@@ -3370,6 +3524,14 @@ function TreeEditorPanel(props: {
     else props.onCommitRowEdit(r);
   }
 
+  // ✎ button: open the element editor (content / image / attributes) for this
+  // row. Parent flushes the row to disk if needed, then opens the modal.
+  function handleRowEdit(rowIndex: number) {
+    const r = props.rows[rowIndex];
+    if (!r || r.name.trim() === "") return;
+    props.onEditRow(r, rowIndex + 1);
+  }
+
   // Insert a new row as a child of the depth-0 row (body or head) so the
   // "+ root" button does the user-intuitive thing: "add to the visible root."
   function insertAtViewRoot() {
@@ -3388,36 +3550,13 @@ function TreeEditorPanel(props: {
         <span className="tree-root-label" title={props.projectRoot}>
           {props.projectRoot.split(/[\\/]/).pop()}
         </span>
-        <div className="tree-view-toggle">
-          <button
-            type="button"
-            className={`tree-view-btn ${
-              props.treeView === "body" ? "active" : ""
-            }`}
-            onClick={() => props.onChangeTreeView("body")}
-            title="<body> を表示"
-          >
-            BODY
-          </button>
-          <button
-            type="button"
-            className={`tree-view-btn ${
-              props.treeView === "head" ? "active" : ""
-            }`}
-            onClick={() => props.onChangeTreeView("head")}
-            title="<head> を表示 (title / meta / link)"
-          >
-            HEAD
-          </button>
-        </div>
+        <span className="tree-view-label" title="&lt;body&gt; を編集 (head は FILE → HEAD)">
+          &lt;body&gt;
+        </span>
         <div className="tree-actions">
           <button
             className="tree-btn"
-            title={
-              props.treeView === "body"
-                ? "<body> の子として追加"
-                : "<head> の子として追加"
-            }
+            title="<body> の子として追加"
             onClick={insertAtViewRoot}
           >
             ＋
@@ -3447,6 +3586,7 @@ function TreeEditorPanel(props: {
               focusRequest={pendingFocusId === row.id}
               onFocus={() => handleRowFocus(index)}
               onCommit={() => handleRowCommit(index)}
+              onEdit={() => handleRowEdit(index)}
               onToggleCollapse={() => toggleCollapse(index)}
               onChange={(e) => handleRowInputChange(e, index)}
               onKeyDown={(e) => handleRowKeyDown(e, index)}
@@ -3582,6 +3722,7 @@ function TreeRowComponent(props: {
   focusRequest: boolean;
   onFocus: () => void;
   onCommit: () => void;
+  onEdit: () => void;
   onToggleCollapse: () => void;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
@@ -3655,6 +3796,17 @@ function TreeRowComponent(props: {
           ⚠ div
         </span>
       )}
+      <button
+        type="button"
+        className="tree-edit-btn"
+        title="内容を編集 (テキスト / 画像 / 属性)"
+        onClick={(e) => {
+          e.stopPropagation();
+          props.onEdit();
+        }}
+      >
+        ✎
+      </button>
     </div>
   );
 }
@@ -3722,23 +3874,7 @@ function EditorPanel(props: {
           className={`tab tab-js ${props.activeTab === "js" ? "active" : ""}`}
           onClick={() => props.setActiveTab("js")}
         >
-          JS
-        </button>
-        <button
-          className={`tab tab-content ${
-            props.activeTab === "content" ? "active" : ""
-          }`}
-          onClick={() => props.setActiveTab("content")}
-        >
-          CONTENT
-        </button>
-        <button
-          className={`tab tab-info ${
-            props.activeTab === "info" ? "active" : ""
-          }`}
-          onClick={() => props.setActiveTab("info")}
-        >
-          INFO
+          SCRIPT
         </button>
         <button
           className={`tab tab-classes ${
@@ -3747,14 +3883,6 @@ function EditorPanel(props: {
           onClick={() => props.setActiveTab("classes")}
         >
           CLASSES
-        </button>
-        <button
-          className={`tab tab-images ${
-            props.activeTab === "images" ? "active" : ""
-          }`}
-          onClick={() => props.setActiveTab("images")}
-        >
-          IMAGES
         </button>
         <span className="dirty-indicator">
           {(props.activeTab === "classes" ? props.classFileDirty : props.dirty)
@@ -3798,11 +3926,6 @@ function EditorPanel(props: {
             value={props.config.js ?? ""}
             onChange={(v) => props.update("js", v || undefined)}
           />
-        ) : props.activeTab === "content" ? (
-          <ContentEditor
-            value={props.config.content ?? ""}
-            onChange={(v) => props.update("content", v || undefined)}
-          />
         ) : props.activeTab === "classes" ? (
           <ClassesTab
             files={props.classFiles}
@@ -3819,18 +3942,22 @@ function EditorPanel(props: {
             onToggleAvailable={props.onToggleAvailableClass}
             hasSelectedElement={!!props.selectedPath}
           />
-        ) : props.activeTab === "images" ? (
-          <ImagesTab
-            folders={props.imageFolders}
-            selected={props.selectedImageFolder}
-            onSelectFolder={props.onSelectImageFolder}
-            baseUrl={props.previewBaseUrl}
-            onApply={props.onApplyImage}
-            onRefresh={props.onReloadImages}
-            hasSelectedElement={!!props.selectedPath}
-          />
         ) : (
-          <InfoEditor config={props.config} update={props.update} />
+          <CssEditor
+            value={props.config.css ?? ""}
+            onChange={(v) => props.update("css", v)}
+            inherited={props.inherited}
+            basin={props.basin}
+            onHighlightSource={props.onHighlightSource}
+            variables={props.variables}
+            classDefs={props.classDefs}
+            onToggleClass={props.onToggleClass}
+            onDeleteClassFromElement={props.onDeleteClassFromElement}
+            availableClassNames={props.config.available_classes ?? []}
+            appliedClassNames={props.appliedClassNames}
+            disabledInherits={props.config.disabled_inherits ?? []}
+            onToggleInherited={props.onToggleInherited}
+          />
         )}
       </div>
     </main>
@@ -4885,78 +5012,30 @@ function JsEditor(props: { value: string; onChange: (v: string) => void }) {
   );
 }
 
-function LinksEditor(props: {
-  links: Array<{ rel: string; href: string; type?: string }>;
-  onChange: (v: Array<{ rel: string; href: string; type?: string }>) => void;
-}) {
-  function update(
-    i: number,
-    patch: Partial<{ rel: string; href: string; type?: string }>
-  ) {
-    const next = props.links.map((l, idx) =>
-      idx === i ? { ...l, ...patch } : l
-    );
-    props.onChange(next);
-  }
-  function add() {
-    props.onChange([...props.links, { rel: "stylesheet", href: "" }]);
-  }
-  function remove(i: number) {
-    props.onChange(props.links.filter((_, idx) => idx !== i));
-  }
-  return (
-    <div className="links-editor">
-      <table>
-        <thead>
-          <tr>
-            <th>rel</th>
-            <th>href</th>
-            <th>type</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {props.links.map((l, i) => (
-            <tr key={i}>
-              <td>
-                <input
-                  value={l.rel}
-                  onChange={(e) => update(i, { rel: e.target.value })}
-                />
-              </td>
-              <td>
-                <input
-                  value={l.href}
-                  onChange={(e) => update(i, { href: e.target.value })}
-                />
-              </td>
-              <td>
-                <input
-                  value={l.type ?? ""}
-                  onChange={(e) =>
-                    update(i, { type: e.target.value || undefined })
-                  }
-                />
-              </td>
-              <td>
-                <button onClick={() => remove(i)}>×</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <button className="add-btn" onClick={add}>
-        + リンクを追加
-      </button>
-    </div>
-  );
-}
-
-function InfoEditor(props: {
+// Inline element editor opened from a tree row's ✎ button. Edits the
+// element's text content (or, for <img>, picks an image → src) plus a compact
+// attribute editor. The element's id is its line number (shown, not editable).
+function ElementEditModal(props: {
+  lineNumber: number;
+  tag: string;
   config: NodeConfig;
   update: <K extends keyof NodeConfig>(k: K, v: NodeConfig[K]) => void;
+  imageFolders: ImageFolder[];
+  selectedImageFolder: string | null;
+  onSelectImageFolder: (n: string | null) => void;
+  previewBaseUrl: string;
+  onApplyImage: (relPath: string) => void;
+  onReloadImages: () => void;
+  onClose: () => void;
 }) {
   const c = props.config;
+  const isImg = props.tag === "img";
+  const VOID = new Set([
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+    "meta", "source", "track", "wbr",
+  ]);
+  const takesText = !VOID.has(props.tag);
+
   function setAttr(k: string, v: string) {
     props.update("attributes", { ...c.attributes, [k]: v });
   }
@@ -4966,37 +5045,211 @@ function InfoEditor(props: {
     props.update("attributes", next);
   }
   function addAttr() {
-    const k = window.prompt("属性名");
+    const k = window.prompt("属性名 (例: href, alt, data-x)");
     if (!k) return;
-    setAttr(k, "");
+    setAttr(k.trim(), "");
   }
+
   return (
-    <div className="info-editor">
-      <label>
-        <span>id</span>
-        <input
-          value={c.id ?? ""}
-          onChange={(e) => props.update("id", e.target.value || undefined)}
-        />
-      </label>
-      <fieldset>
-        <legend>attributes</legend>
-        {Object.entries(c.attributes).map(([k, v]) => (
-          <div key={k} className="attr-row">
-            <span className="attr-key">{k}</span>
-            <input value={v} onChange={(e) => setAttr(k, e.target.value)} />
-            <button onClick={() => delAttr(k)}>×</button>
+    <div className="modal-bg" onClick={props.onClose}>
+      <div
+        className="modal element-edit-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <span>
+            要素を編集 — 行 {props.lineNumber}
+            <code className="elem-tag">&lt;{props.tag || "?"}&gt;</code>
+            <span className="elem-id">id="{props.lineNumber}"</span>
+          </span>
+          <button onClick={props.onClose}>×</button>
+        </div>
+        <div className="element-edit-body">
+          {isImg ? (
+            <div className="elem-section">
+              <div className="elem-section-title">画像を選択 (src)</div>
+              {c.attributes.src && (
+                <div className="elem-current-src">現在: {c.attributes.src}</div>
+              )}
+              <ImagesTab
+                folders={props.imageFolders}
+                selected={props.selectedImageFolder}
+                onSelectFolder={props.onSelectImageFolder}
+                baseUrl={props.previewBaseUrl}
+                onApply={props.onApplyImage}
+                onRefresh={props.onReloadImages}
+                hasSelectedElement={true}
+              />
+              <label className="elem-field">
+                <span>alt</span>
+                <input
+                  value={c.attributes.alt ?? ""}
+                  onChange={(e) => setAttr("alt", e.target.value)}
+                  placeholder="代替テキスト"
+                />
+              </label>
+            </div>
+          ) : takesText ? (
+            <div className="elem-section">
+              <div className="elem-section-title">テキスト (content)</div>
+              <ContentEditor
+                value={c.content ?? ""}
+                onChange={(v) => props.update("content", v || undefined)}
+              />
+            </div>
+          ) : (
+            <div className="elem-section elem-void-note">
+              &lt;{props.tag}&gt; は内容を持たない要素です。属性のみ編集できます。
+            </div>
+          )}
+
+          <div className="elem-section">
+            <div className="elem-section-title">属性</div>
+            {Object.entries(c.attributes)
+              .filter(([k]) => !(isImg && (k === "src" || k === "alt")))
+              .map(([k, v]) => (
+                <div key={k} className="attr-row">
+                  <span className="attr-key">{k}</span>
+                  <input value={v} onChange={(e) => setAttr(k, e.target.value)} />
+                  <button onClick={() => delAttr(k)} title="削除">
+                    ×
+                  </button>
+                </div>
+              ))}
+            <button className="add-btn" onClick={addAttr}>
+              + 属性を追加
+            </button>
           </div>
-        ))}
-        <button onClick={addAttr}>+ 属性を追加</button>
-      </fieldset>
-      <fieldset>
-        <legend>links (head 用 / &lt;link&gt; タグ)</legend>
-        <LinksEditor
-          links={c.links}
-          onChange={(v) => props.update("links", v)}
-        />
-      </fieldset>
+        </div>
+        <div className="element-edit-foot">
+          <button className="primary" onClick={props.onClose}>
+            完了
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// FILE → HEAD → DEFAULT: rarely-changed head settings (charset / viewport)
+// plus the <html lang>. Stored in htfl.yaml `head:` (lang on HTML/ config).
+function HeadDefaultModal(props: {
+  head: HeadConfig;
+  lang: string;
+  onClose: () => void;
+  onSave: (patch: Partial<HeadConfig>, lang: string) => void | Promise<void>;
+}) {
+  const [charset, setCharset] = useState(props.head.charset ?? "UTF-8");
+  const [viewport, setViewport] = useState(
+    props.head.viewport ?? "width=device-width, initial-scale=1"
+  );
+  const [lang, setLang] = useState(props.lang);
+  return (
+    <div className="modal-bg" onClick={props.onClose}>
+      <div className="modal head-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <span>HEAD — DEFAULT</span>
+          <button onClick={props.onClose}>×</button>
+        </div>
+        <div className="head-modal-body">
+          <p className="head-modal-help">
+            ほとんど変更しない既定の head 設定です。<code>htfl.yaml</code>{" "}
+            に保存され、ビルド時に <code>&lt;head&gt;</code> へ出力されます。
+          </p>
+          <label className="head-field">
+            <span>&lt;html lang&gt;</span>
+            <input value={lang} onChange={(e) => setLang(e.target.value)} />
+          </label>
+          <label className="head-field">
+            <span>charset</span>
+            <input
+              value={charset}
+              onChange={(e) => setCharset(e.target.value)}
+            />
+          </label>
+          <label className="head-field">
+            <span>viewport</span>
+            <input
+              value={viewport}
+              onChange={(e) => setViewport(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="head-modal-foot">
+          <button onClick={props.onClose}>キャンセル</button>
+          <button
+            className="primary"
+            onClick={() =>
+              props.onSave(
+                { charset: charset.trim(), viewport: viewport.trim() },
+                lang.trim() || "ja"
+              )
+            }
+          >
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// FILE → HEAD → PROJECT TAGS: per-project head tags (title / description /
+// OGP / favicon / theme-color). Stored in htfl.yaml `head:`.
+function HeadProjectTagsModal(props: {
+  head: HeadConfig;
+  onClose: () => void;
+  onSave: (patch: Partial<HeadConfig>) => void | Promise<void>;
+}) {
+  const [f, setF] = useState<HeadConfig>({
+    title: props.head.title ?? "",
+    description: props.head.description ?? "",
+    og_title: props.head.og_title ?? "",
+    og_description: props.head.og_description ?? "",
+    og_image: props.head.og_image ?? "",
+    favicon: props.head.favicon ?? "",
+    theme_color: props.head.theme_color ?? "",
+  });
+  const set = (k: keyof HeadConfig, v: string) =>
+    setF((prev) => ({ ...prev, [k]: v }));
+  const field = (k: keyof HeadConfig, label: string, ph = "") => (
+    <label className="head-field">
+      <span>{label}</span>
+      <input
+        value={f[k] ?? ""}
+        placeholder={ph}
+        onChange={(e) => set(k, e.target.value)}
+      />
+    </label>
+  );
+  return (
+    <div className="modal-bg" onClick={props.onClose}>
+      <div className="modal head-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <span>HEAD — PROJECT TAGS</span>
+          <button onClick={props.onClose}>×</button>
+        </div>
+        <div className="head-modal-body">
+          <p className="head-modal-help">
+            このプロジェクト固有の head タグです。
+          </p>
+          {field("title", "title", "ページタイトル")}
+          {field("description", "meta description", "ページの説明")}
+          {field("theme_color", "theme-color", "#39b54a")}
+          <div className="head-group-label">OGP (SNS シェア)</div>
+          {field("og_title", "og:title")}
+          {field("og_description", "og:description")}
+          {field("og_image", "og:image", "https://... または /images/...")}
+          <div className="head-group-label">アイコン</div>
+          {field("favicon", "favicon (link rel=icon)", "/favicon.ico")}
+        </div>
+        <div className="head-modal-foot">
+          <button onClick={props.onClose}>キャンセル</button>
+          <button className="primary" onClick={() => props.onSave(f)}>
+            保存
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -5244,6 +5497,8 @@ function useEscClose(onClose: () => void) {
 
 function SettingsModal(props: {
   cssResetOn: boolean;
+  outputMode: "ssr" | "ssr+js";
+  onSetOutputMode: (m: "ssr" | "ssr+js") => void;
   hasProject: boolean;
   browserPath: string | null;
   onToggleCssReset: () => void;
@@ -5269,6 +5524,28 @@ function SettingsModal(props: {
           </button>
         </div>
         <div className="settings-body">
+          <section className="settings-row">
+            <div className="settings-label">
+              <strong>出力モード</strong>
+              <p>
+                SSR = 静的 HTML のみ (SCRIPT/JS を出力せず、JavaScript
+                無効でも表示)。SSR + JS = 対話用の JS も出力します
+                (プロジェクト単位)。
+              </p>
+            </div>
+            <button
+              className="settings-toggle"
+              disabled={!props.hasProject}
+              onClick={() =>
+                props.onSetOutputMode(
+                  props.outputMode === "ssr" ? "ssr+js" : "ssr"
+                )
+              }
+            >
+              {props.outputMode === "ssr" ? "SSR (静的)" : "SSR + JS (動的)"}
+            </button>
+          </section>
+
           <section className="settings-row">
             <div className="settings-label">
               <strong>CSS リセット</strong>

@@ -216,6 +216,97 @@ pub struct ProjectConfig {
     /// to fall back to the browser's user-agent stylesheet.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub css_reset: Option<bool>,
+    /// Output mode. `"ssr"` emits static HTML only (the per-element SCRIPT/JS
+    /// layer is omitted, so the page works with JavaScript disabled).
+    /// `"ssr+js"` (default) also emits the JS for client-side interactivity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_mode: Option<String>,
+    /// Project-level <head> settings, edited via FILE → HEAD (not the DOM
+    /// tree). Injected into <head> at build time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub head: Option<HeadConfig>,
+}
+
+/// <head> tags managed at the project level (FILE → HEAD menus).
+/// DEFAULT = rarely-changed (charset, viewport). PROJECT TAGS = per-project
+/// (title, description, OGP, favicon, theme-color).
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct HeadConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub charset: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub viewport: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub og_title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub og_description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub og_image: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub favicon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_color: Option<String>,
+}
+
+// Render the project-level head config into HTML <head> child tags.
+fn render_head_tags(head: &HeadConfig, indent: &str) -> String {
+    let mut s = String::new();
+    let meta_name = |s: &mut String, name: &str, val: &Option<String>| {
+        if let Some(v) = val {
+            if !v.is_empty() {
+                s.push_str(indent);
+                s.push_str(&format!(
+                    "<meta name=\"{}\" content=\"{}\" />\n",
+                    name,
+                    escape_attr(v)
+                ));
+            }
+        }
+    };
+    let meta_prop = |s: &mut String, prop: &str, val: &Option<String>| {
+        if let Some(v) = val {
+            if !v.is_empty() {
+                s.push_str(indent);
+                s.push_str(&format!(
+                    "<meta property=\"{}\" content=\"{}\" />\n",
+                    prop,
+                    escape_attr(v)
+                ));
+            }
+        }
+    };
+    if let Some(cs) = &head.charset {
+        if !cs.is_empty() {
+            s.push_str(indent);
+            s.push_str(&format!("<meta charset=\"{}\" />\n", escape_attr(cs)));
+        }
+    }
+    meta_name(&mut s, "viewport", &head.viewport);
+    if let Some(t) = &head.title {
+        if !t.is_empty() {
+            s.push_str(indent);
+            s.push_str(&format!("<title>{}</title>\n", escape_html(t)));
+        }
+    }
+    meta_name(&mut s, "description", &head.description);
+    meta_name(&mut s, "theme-color", &head.theme_color);
+    meta_prop(&mut s, "og:title", &head.og_title);
+    meta_prop(&mut s, "og:description", &head.og_description);
+    meta_prop(&mut s, "og:image", &head.og_image);
+    if let Some(fav) = &head.favicon {
+        if !fav.is_empty() {
+            s.push_str(indent);
+            s.push_str(&format!(
+                "<link rel=\"icon\" href=\"{}\" />\n",
+                escape_attr(fav)
+            ));
+        }
+    }
+    s
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -410,15 +501,26 @@ fn escape_attr(s: &str) -> String {
         .replace('<', "&lt;")
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_node(
     node: &TreeNode,
     vars: &BTreeMap<String, String>,
     depth: usize,
     out: &mut String,
     extra_head_styles: Option<&str>,
+    // Pre-rendered project-level <head> tags (charset/title/meta/...), emitted
+    // at the top of <head>.
+    extra_head_tags: Option<&str>,
     scripts: &mut Vec<(String, String)>,
     js_counter: &mut u32,
     dev: bool,
+    // Sequential id counter over the <body> subtree. Once numbering is active,
+    // every element gets id="N" matching its line number in the editor tree.
+    id_counter: &mut u32,
+    number_ids: bool,
+    // When false (SSR / static output), the per-element SCRIPT (js) layer is
+    // not emitted, so the page works with JavaScript disabled.
+    emit_scripts: bool,
 ) -> Result<(), String> {
     let cfg = read_node_config(Path::new(&node.path))?;
     let raw_tag = cfg
@@ -428,6 +530,9 @@ fn render_node(
     // Unknown tag names fall back to <div> (matches the editor's warning).
     let tag = resolve_tag(&raw_tag);
     let pad = "  ".repeat(depth);
+    // Numbering activates at <body> and stays on for its whole subtree, so the
+    // emitted id matches the line number shown in the editor (body = line 1).
+    let numbering = number_ids || tag == "body";
 
     out.push_str(&pad);
     out.push('<');
@@ -442,7 +547,12 @@ fn render_node(
         ));
     }
 
-    if let Some(id) = &cfg.id {
+    // id = the element's line number within <body> (auto, overrides any
+    // stored id). Elements outside <body> keep their explicit id if set.
+    if numbering {
+        *id_counter += 1;
+        out.push_str(&format!(" id=\"{}\"", id_counter));
+    } else if let Some(id) = &cfg.id {
         out.push_str(&format!(" id=\"{}\"", escape_attr(id)));
     }
     if !cfg.classes.is_empty() {
@@ -479,9 +589,10 @@ fn render_node(
         }
     }
 
-    // If this element has JS, mint a stable id and queue the script.
+    // If this element has JS (and we're emitting scripts), mint a stable id
+    // and queue the script. In SSR/static mode this is skipped entirely.
     let js_trim = cfg.js.as_deref().map(str::trim).unwrap_or("");
-    if !js_trim.is_empty() {
+    if emit_scripts && !js_trim.is_empty() {
         *js_counter += 1;
         let id = format!("h{}", js_counter);
         out.push_str(&format!(" data-htfl-id=\"{}\"", id));
@@ -501,11 +612,30 @@ fn render_node(
     let has_content = !content_text.is_empty();
     let inject_styles =
         tag == "head" && extra_head_styles.map(|s| !s.trim().is_empty()).unwrap_or(false);
+    let inject_head_tags =
+        tag == "head" && extra_head_tags.map(|s| !s.trim().is_empty()).unwrap_or(false);
     let has_head_links = tag == "head" && !cfg.links.is_empty();
     let inject_scripts_here = tag == "body";
 
-    if has_content || has_children || inject_styles || has_head_links || inject_scripts_here {
+    if has_content
+        || has_children
+        || inject_styles
+        || inject_head_tags
+        || has_head_links
+        || inject_scripts_here
+    {
         out.push('\n');
+
+        // Project-level head tags first (charset should come early).
+        if let Some(tags) = extra_head_tags.filter(|s| !s.trim().is_empty()) {
+            for line in tags.lines() {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                out.push_str(line);
+                out.push('\n');
+            }
+        }
 
         if has_head_links {
             for link in &cfg.links {
@@ -544,7 +674,10 @@ fn render_node(
             }
         }
         for child in &node.children {
-            render_node(child, vars, depth + 1, out, None, scripts, js_counter, dev)?;
+            render_node(
+                child, vars, depth + 1, out, None, None, scripts, js_counter,
+                dev, id_counter, numbering, emit_scripts,
+            )?;
         }
 
         // Emit <script> just before </body> with all queued per-element JS
@@ -1006,36 +1139,44 @@ fn generate_html(root: &Path, dev: bool) -> Result<String, String> {
         user_class_css
     };
 
+    // SSR/static mode omits the per-element SCRIPT (js) layer so the page
+    // works with JavaScript disabled. Default ("ssr+js") emits it.
+    let emit_scripts = project_cfg.output_mode.as_deref() != Some("ssr");
+
+    // Project-level <head> tags (FILE → HEAD), pre-rendered for injection.
+    let head_tags = project_cfg
+        .head
+        .as_ref()
+        .map(|h| render_head_tags(h, "    "))
+        .unwrap_or_default();
+
     let mut out = String::new();
     let mut scripts: Vec<(String, String)> = Vec::new();
     let mut js_counter: u32 = 0;
+    let mut id_counter: u32 = 0;
     out.push_str(&doctype);
     out.push('\n');
     out.push_str(&format!("<html lang=\"{}\">\n", escape_attr(&lang)));
     for child in &tree.children {
-        if child.display_name == "head" {
-            render_node(
-                child,
-                &project_cfg.variables,
-                1,
-                &mut out,
-                Some(&class_css),
-                &mut scripts,
-                &mut js_counter,
-                dev,
-            )?;
+        let (extra_styles, extra_tags) = if child.display_name == "head" {
+            (Some(class_css.as_str()), Some(head_tags.as_str()))
         } else {
-            render_node(
-                child,
-                &project_cfg.variables,
-                1,
-                &mut out,
-                None,
-                &mut scripts,
-                &mut js_counter,
-                dev,
-            )?;
-        }
+            (None, None)
+        };
+        render_node(
+            child,
+            &project_cfg.variables,
+            1,
+            &mut out,
+            extra_styles,
+            extra_tags,
+            &mut scripts,
+            &mut js_counter,
+            dev,
+            &mut id_counter,
+            false,
+            emit_scripts,
+        )?;
     }
     if dev {
         out.push_str(DEV_SELECT_SCRIPT);
@@ -1666,5 +1807,17 @@ mod tests {
         assert_eq!(mime_for(Path::new("style.CSS")), "text/css; charset=utf-8");
         assert_eq!(mime_for(Path::new("x.unknownext")), "application/octet-stream");
         assert_eq!(mime_for(Path::new("noext")), "application/octet-stream");
+    }
+
+    #[test]
+    fn output_mode_ssr_omits_scripts() {
+        // emit_scripts gating: "ssr" → false, default/"ssr+js" → true.
+        assert!(Some("ssr+js") != Some("ssr"));
+        let ssr: Option<&str> = Some("ssr");
+        let dflt: Option<&str> = None;
+        let plus: Option<&str> = Some("ssr+js");
+        assert!(!(ssr != Some("ssr"))); // ssr → emit_scripts false
+        assert!(dflt != Some("ssr")); // default → true
+        assert!(plus != Some("ssr")); // ssr+js → true
     }
 }

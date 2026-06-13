@@ -27,6 +27,18 @@ export interface NodeConfig {
   links: LinkEntry[];
 }
 
+export interface HeadConfig {
+  charset?: string;
+  viewport?: string;
+  title?: string;
+  description?: string;
+  og_title?: string;
+  og_description?: string;
+  og_image?: string;
+  favicon?: string;
+  theme_color?: string;
+}
+
 export interface ProjectConfig {
   doctype?: string;
   variables: Record<string, string>;
@@ -34,6 +46,11 @@ export interface ProjectConfig {
   /** When undefined or true, prepend the built-in CSS reset.
    *  When false, fall back to the browser's user-agent stylesheet. */
   css_reset?: boolean;
+  /** "ssr" = static HTML only (no SCRIPT/JS layer → works with JS disabled).
+   *  "ssr+js" (default) = also emit JS for interactivity. */
+  output_mode?: "ssr" | "ssr+js";
+  /** Project-level <head> settings, edited via FILE → HEAD. */
+  head?: HeadConfig;
 }
 
 export interface NodeSnapshot {

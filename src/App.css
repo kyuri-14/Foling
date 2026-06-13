@@ -2395,3 +2395,148 @@ button.secondary {
   color: #999;
   flex-shrink: 0;
 }
+
+/* ── Tree row ✎ edit button ───────────────────────────────────────── */
+.tree-edit-btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #7c8696;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  opacity: 0;
+}
+.tree-row:hover .tree-edit-btn { opacity: 1; }
+.tree-edit-btn:hover { background: #2a3340; color: #fff; }
+
+.tree-view-label {
+  font-size: 0.8rem;
+  color: #8b94a3;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* ── Menu section label (FILE → HEAD group) ───────────────────────── */
+.menu-section-label {
+  padding: 4px 16px 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #6b7484;
+  text-transform: uppercase;
+}
+
+/* ── Element edit modal (✎) ───────────────────────────────────────── */
+.element-edit-modal { width: 640px; max-width: 92vw; }
+.elem-tag {
+  margin: 0 8px;
+  padding: 1px 7px;
+  background: #0e1116;
+  border-radius: 5px;
+  color: #4ad9ee;
+}
+.elem-id { color: #7c8696; font-size: 0.85rem; }
+.element-edit-body {
+  padding: 16px 18px;
+  max-height: 70vh;
+  overflow: auto;
+}
+.elem-section { margin-bottom: 18px; }
+.elem-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #9aa4b2;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.elem-current-src {
+  font-size: 0.8rem;
+  color: #7c8696;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+.elem-void-note { color: #8b94a3; font-size: 0.9rem; }
+.elem-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.elem-field > span { width: 64px; color: #9aa4b2; font-size: 0.85rem; }
+.elem-field > input {
+  flex: 1;
+  padding: 7px 10px;
+  background: #0e1116;
+  border: 1px solid #2a3340;
+  border-radius: 6px;
+  color: #e8edf2;
+}
+.element-edit-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 18px;
+  border-top: 1px solid #1c222c;
+}
+.element-edit-foot .primary,
+.head-modal-foot .primary {
+  background: #3f7bb6;
+  border: 1px solid #3f7bb6;
+  color: #fff;
+  padding: 8px 22px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* ── HEAD modals (DEFAULT / PROJECT TAGS) ─────────────────────────── */
+.head-modal { width: 560px; max-width: 92vw; }
+.head-modal-body { padding: 16px 18px; max-height: 70vh; overflow: auto; }
+.head-modal-help { color: #8b94a3; font-size: 0.85rem; margin-bottom: 14px; }
+.head-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.head-field > span {
+  width: 150px;
+  flex: 0 0 150px;
+  color: #9aa4b2;
+  font-size: 0.85rem;
+  text-align: right;
+}
+.head-field > input {
+  flex: 1;
+  padding: 8px 10px;
+  background: #0e1116;
+  border: 1px solid #2a3340;
+  border-radius: 6px;
+  color: #e8edf2;
+}
+.head-group-label {
+  margin: 16px 0 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #6b7484;
+  text-transform: uppercase;
+}
+.head-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid #1c222c;
+}
+.head-modal-foot button {
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: 1px solid #2a3340;
+  background: #1a1f29;
+  color: #e8edf2;
+  cursor: pointer;
+}
