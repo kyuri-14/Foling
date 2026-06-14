@@ -1392,9 +1392,9 @@ export default function App() {
             if (selectedClassFile && projectRoot) {
               saveClassFile().catch((err) => setError(String(err)));
             } else if (treeDirty) {
-              setInfo("ツリーを保存しました");
+              setInfo("Tree saved");
             } else {
-              setInfo("クラスファイルを選択してください");
+              setInfo("Select a class file");
             }
           } else if (selectedPath) {
             const cleaned = cleanForSave(config);
@@ -1402,13 +1402,13 @@ export default function App() {
               .then(() => {
                 setConfig(cleaned);
                 setDirty(false);
-                setInfo("保存しました");
+                setInfo("Saved");
               })
               .catch((err) => setError(String(err)));
           } else if (treeDirty) {
-            setInfo("ツリーを保存しました");
+            setInfo("Tree saved");
           } else {
-            setInfo("保存対象がありません");
+            setInfo("Nothing to save");
           }
         });
         return;
@@ -1620,7 +1620,7 @@ export default function App() {
             await win.destroy();
           } catch (e) {
             // Saving failed — keep the window open so the user can react.
-            setError(`終了前の保存に失敗しました: ${String(e)}`);
+            setError(`Failed to save before exit: ${String(e)}`);
           }
         });
         if (cancelled) un();
@@ -1685,7 +1685,7 @@ export default function App() {
     if (selectedImageFolder && !imgs.some((f) => f.name === selectedImageFolder)) {
       setSelectedImageFolder(imgs[0]?.name ?? null);
     }
-    setInfo("画像フォルダを更新しました");
+    setInfo("Image folders refreshed");
   }
 
   // Apply an image to the currently-selected element. If the element is an
@@ -1693,7 +1693,7 @@ export default function App() {
   // `background-image` in its own CSS.
   function applyImageToElement(imageRelPath: string) {
     if (!selectedPath) {
-      setError("適用先の要素を選択してください");
+      setError("Select a target element");
       return;
     }
     const url = `/images/${imageRelPath}`;
@@ -1710,7 +1710,7 @@ export default function App() {
         ...prev,
         attributes: { ...(prev.attributes ?? {}), src: url },
       }));
-      setInfo(`<img src> に適用: ${imageRelPath}`);
+      setInfo(`Applied to <img src>: ${imageRelPath}`);
     } else {
       const existing = config.css ?? "";
       const kept = existing
@@ -1723,7 +1723,7 @@ export default function App() {
         `background-image: url('${url}');`
       ).replace(/^\n+/, "");
       setConfig((prev) => ({ ...prev, css: next }));
-      setInfo(`background-image に適用: ${imageRelPath}`);
+      setInfo(`Applied as background-image: ${imageRelPath}`);
     }
     setDirty(true);
   }
@@ -1776,14 +1776,14 @@ export default function App() {
       )
     );
     setClassFileDirty(false);
-    setInfo(`保存しました: ${selectedClassFile}`);
+    setInfo(`Saved: ${selectedClassFile}`);
     scheduleRebuild();
   }
 
   async function addClassFile() {
     if (!projectRoot) return;
     const base = window.prompt(
-      "ファイル名 (例: 02_layout)。.css は自動付与されます",
+      "File name (e.g. 02_layout). .css is added automatically",
       `${String(classFiles.length + 1).padStart(2, "0")}_layer`
     );
     if (!base) return;
@@ -1805,7 +1805,7 @@ export default function App() {
 
   async function removeClassFile() {
     if (!projectRoot || !selectedClassFile) return;
-    if (!window.confirm(`削除: ${selectedClassFile}`)) return;
+    if (!window.confirm(`Delete: ${selectedClassFile}`)) return;
     try {
       await deleteClassFile(projectRoot, selectedClassFile);
       const next = classFiles.filter((f) => f.name !== selectedClassFile);
@@ -1945,11 +1945,11 @@ export default function App() {
     if (!projectRoot) return;
     const clip = treeClipboardRef.current;
     if (!clip) {
-      setInfo("クリップボードが空です");
+      setInfo("Clipboard is empty");
       return;
     }
     if (!row.actualPath) {
-      setError("ペースト先の行がまだ保存されていません");
+      setError("The paste target row is not saved yet");
       return;
     }
     const targetPath = row.actualPath;
@@ -1960,7 +1960,7 @@ export default function App() {
         const freshTree = await readTree(root);
         const parent = parentNode(freshTree, targetPath);
         if (!parent) {
-          setError("親フォルダが特定できませんでした");
+          setError("Could not determine the parent folder");
           return;
         }
         const used = new Set<number>();
@@ -1994,15 +1994,15 @@ export default function App() {
   // the in-app tree clipboard. Used by both the context menu and Ctrl+C.
   async function copyRowToClipboard(row: FlatRow) {
     if (!row.actualPath) {
-      setInfo("未保存の行はコピーできません");
+      setInfo("Cannot copy an unsaved row");
       return;
     }
     try {
       const snap = await snapshotSubtree(row.actualPath);
       treeClipboardRef.current = snap;
       setTreeClipboard(snap);
-      const tag = row.name.trim() || "要素";
-      setInfo(`<${tag}> をコピーしました (Ctrl+V で貼り付け)`);
+      const tag = row.name.trim() || "element";
+      setInfo(`Copied <${tag}> (paste with Ctrl+V)`);
     } catch (e) {
       setError(String(e));
     }
@@ -2095,7 +2095,7 @@ export default function App() {
       available_classes: nextAvail,
     }));
     setDirty(true);
-    setInfo(has ? `.${name} を除外しました` : `.${name} を適用しました`);
+    setInfo(has ? `Removed .${name}` : `Applied .${name}`);
   }
 
   // CLASSES tab: register/unregister a class for this element. Independent of
@@ -2114,7 +2114,7 @@ export default function App() {
       available_classes: nextAvail,
     }));
     setDirty(true);
-    setInfo(has ? `.${name} をリストから外しました` : `.${name} を追加しました`);
+    setInfo(has ? `Removed .${name} from the list` : `Added .${name}`);
   }
 
   // CSS tab CLASSES section: full removal — drops from both available_classes
@@ -2129,7 +2129,7 @@ export default function App() {
       ),
     }));
     setDirty(true);
-    setInfo(`.${name} を一覧から削除しました`);
+    setInfo(`Removed .${name} from the list`);
   }
 
   // Toggle whether an inherited property is allowed on this element.
@@ -2141,7 +2141,7 @@ export default function App() {
     setConfig((prev) => ({ ...prev, disabled_inherits: next }));
     setDirty(true);
     setInfo(
-      has ? `${prop} の継承を有効にしました` : `${prop} の継承を遮断しました`
+      has ? `Enabled inheritance of ${prop}` : `Blocked inheritance of ${prop}`
     );
   }
 
@@ -2154,14 +2154,14 @@ export default function App() {
     const sel = await pickProjectFolder();
     if (!sel) return;
     const doctype = window.prompt(
-      "DOCTYPE 宣言を入力してください",
+      "Enter the DOCTYPE declaration",
       DEFAULT_DOCTYPE
     );
     if (doctype == null) return;
     try {
       await initProject(sel, doctype || DEFAULT_DOCTYPE);
       await openProject(sel);
-      setInfo(`プロジェクトを生成しました: ${sel}`);
+      setInfo(`Project created: ${sel}`);
     } catch (e) {
       setError(String(e));
     }
@@ -2179,7 +2179,7 @@ export default function App() {
       const dest = await pickHtmlSaveTarget();
       if (!dest) return;
       await exportHtml(projectRoot, dest);
-      setInfo(`HTML を書き出しました: ${dest}`);
+      setInfo(`Exported HTML: ${dest}`);
     } catch (e) {
       setError(String(e));
     }
@@ -2193,7 +2193,7 @@ export default function App() {
       const dest = await pickProjectFolder();
       if (!dest) return;
       const created = await importHtml(htmlFile, dest);
-      setInfo(`HTFL に変換しました: ${created}`);
+      setInfo(`Imported to HTFL: ${created}`);
       await openProject(created);
     } catch (e) {
       setError(String(e));
@@ -2205,7 +2205,7 @@ export default function App() {
     try {
       const plg = await readPlugins(projectRoot);
       setPlugins(plg);
-      setInfo(`プラグインを再読み込み: ${plg.length} 件`);
+      setInfo(`Plugins reloaded: ${plg.length}`);
     } catch (e) {
       setError(String(e));
     }
@@ -2230,15 +2230,15 @@ export default function App() {
         projectConfig,
         classFiles,
       };
-      setInfo(`エクスポート中: ${exp.label}...`);
+      setInfo(`Exporting: ${exp.label}...`);
       const out = await runExporter(code, doc);
       const ext = exp.extension ?? "txt";
       const dest = await pickSaveTarget(`export.${ext}`, ext);
       if (!dest) return;
       await writeTextFile(dest, out);
-      setInfo(`エクスポート完了: ${dest}`);
+      setInfo(`Export complete: ${dest}`);
     } catch (e) {
-      setError(`エクスポート失敗: ${String(e)}`);
+      setError(`Export failed: ${String(e)}`);
     }
   }
 
@@ -2249,10 +2249,10 @@ export default function App() {
   function ensurePluginConsent(): boolean {
     if (localStorage.getItem(PLUGIN_CONSENT_KEY) === "yes") return true;
     const ok = window.confirm(
-      "プラグインは任意の JavaScript を実行します。\n" +
-        "Web Worker 内で実行されますが完全なサンドボックスではありません。\n" +
-        "信頼できる提供元のプラグインのみ実行してください。\n\n" +
-        "実行を許可しますか?(今後この確認は表示されません)"
+      "Plugins run arbitrary JavaScript.\n" +
+        "They run in a Web Worker, which is not a full sandbox.\n" +
+        "Only run plugins from sources you trust.\n\n" +
+        "Allow execution? (this confirmation will not be shown again)"
     );
     if (ok) localStorage.setItem(PLUGIN_CONSENT_KEY, "yes");
     return ok;
@@ -2261,7 +2261,7 @@ export default function App() {
   // Insert a plugin snippet into the active element's CSS / content.
   function insertSnippet(s: SnippetEntry) {
     if (!selectedPath) {
-      setError("挿入先の要素を選択してください");
+      setError("Select a target element to insert into");
       return;
     }
     if (s.kind === "content") {
@@ -2272,20 +2272,20 @@ export default function App() {
       const sep = cur.trim() ? "\n" : "";
       update("css", cur.replace(/\n+$/, "") + sep + s.body);
     }
-    setInfo(`スニペット挿入: ${s.name}`);
+    setInfo(`Snippet inserted: ${s.name}`);
     setShowPluginsModal(false);
   }
 
   // Apply a plugin class (framework utility) directly to the selected element.
   function applyPluginClass(name: string) {
     if (!selectedPath) {
-      setError("適用先の要素を選択してください");
+      setError("Select a target element");
       return;
     }
     const cur = config.classes ?? [];
     const has = cur.includes(name);
     update("classes", has ? cur.filter((c) => c !== name) : [...cur, name]);
-    setInfo(has ? `.${name} を除外` : `.${name} を適用`);
+    setInfo(has ? `Remove .${name}` : `Apply .${name}`);
   }
 
   async function refreshTree() {
@@ -2303,7 +2303,7 @@ export default function App() {
     if (next === treeView) return;
     if (treeDirty) {
       const apply = window.confirm(
-        "未保存のツリー変更があります。保存してから切り替えますか? (キャンセル = 破棄して切替)"
+        "You have unsaved tree changes. Save before switching? (Cancel = discard and switch)"
       );
       if (apply) {
         const result = await applyRows();
@@ -2398,7 +2398,7 @@ export default function App() {
     try {
       const inverse = await performInverse(last);
       if (inverse) setRedoStack((prev) => [...prev.slice(-49), inverse]);
-      setInfo("元に戻しました");
+      setInfo("Undone");
     } catch (e) {
       setError(String(e));
     }
@@ -2411,7 +2411,7 @@ export default function App() {
     try {
       const inverse = await performInverse(last);
       if (inverse) setUndoStack((prev) => [...prev.slice(-49), inverse]);
-      setInfo("やり直しました");
+      setInfo("Redone");
     } catch (e) {
       setError(String(e));
     }
@@ -2470,7 +2470,7 @@ export default function App() {
       await writeNode(selectedPath, cleaned);
       setConfig(cleaned);
       setDirty(false);
-      setInfo("保存しました");
+      setInfo("Saved");
       scheduleRebuild();
     } catch (e) {
       setError(String(e));
@@ -2490,14 +2490,14 @@ export default function App() {
       await buildHtml(projectRoot, dev);
       const url = await previewUrl();
       if (!url) {
-        setError("プレビューサーバが起動していません");
+        setError("The preview server is not running");
         return;
       }
       await openInBrowser(url, browserPath);
       setInfo(
         dev
-          ? "DEV: ブラウザで要素をクリックするとエディタが移動します"
-          : `ブラウザで表示: ${url}`
+          ? "DEV: click an element in the browser to jump to it in the editor"
+          : `Opened in browser: ${url}`
       );
     } catch (e) {
       setError(String(e));
@@ -2577,13 +2577,13 @@ export default function App() {
     if (sel == null) return;
     setBrowserPath(sel);
     localStorage.setItem(BROWSER_KEY, sel);
-    setInfo(`プレビューブラウザ: ${sel}`);
+    setInfo(`Preview browser: ${sel}`);
   }
 
   function clearBrowser() {
     setBrowserPath(null);
     localStorage.removeItem(BROWSER_KEY);
-    setInfo("プレビューブラウザを既定に戻しました");
+    setInfo("Preview browser reset to default");
   }
 
   function editVariables() {
@@ -2597,7 +2597,7 @@ export default function App() {
       const cfg = { ...projectConfig, variables: nextVars };
       await writeProjectConfig(projectRoot, cfg);
       setProjectConfig(cfg);
-      setInfo("プロジェクト変数を保存しました");
+      setInfo("Project variables saved");
       scheduleRebuild();
     } catch (e) {
       setError(String(e));
@@ -2616,7 +2616,7 @@ export default function App() {
     try {
       await writeProjectConfig(projectRoot, cfg);
       setProjectConfig(cfg);
-      setInfo("HEAD 設定を保存しました");
+      setInfo("HEAD settings saved");
       scheduleRebuild();
     } catch (e) {
       setError(String(e));
@@ -2655,8 +2655,8 @@ export default function App() {
       setProjectConfig(cfg);
       setInfo(
         next
-          ? "CSS リセット: ON (margin / padding / list-style 等を初期化)"
-          : "CSS リセット: OFF (ブラウザ既定スタイルに復帰)"
+          ? "CSS reset: ON (clears margin / padding / list-style etc.)"
+          : "CSS reset: OFF (back to browser default styles)"
       );
       scheduleRebuild();
     } catch (e) {
@@ -2682,8 +2682,8 @@ export default function App() {
       setProjectConfig(cfg);
       setInfo(
         mode === "ssr"
-          ? "出力モード: SSR (静的・JS なしでも表示)"
-          : "出力モード: SSR + JS (動的・SCRIPT を出力)"
+          ? "Output mode: SSR (static, displays without JS)"
+          : "Output mode: SSR + JS (dynamic, emits SCRIPT)"
       );
       scheduleRebuild();
     } catch (e) {
@@ -2694,7 +2694,7 @@ export default function App() {
   async function editDoctype() {
     if (!projectRoot) return;
     const cur = projectConfig.doctype ?? DEFAULT_DOCTYPE;
-    const next = window.prompt("DOCTYPE 宣言", cur);
+    const next = window.prompt("DOCTYPE declaration", cur);
     if (next == null) return;
     try {
       const cfg = { ...projectConfig, doctype: next };
@@ -2723,7 +2723,7 @@ export default function App() {
         links: cur.links ?? [],
       };
       await writeNode(htmlPath, cleanForSave(nextConfig));
-      setInfo(`<html lang="${nextLang}"> に設定`);
+      setInfo(`Set <html lang="${nextLang}">`);
     } catch (e) {
       setError(String(e));
     }
@@ -2928,7 +2928,7 @@ export default function App() {
           className="toast toast-error"
           role="alert"
           onClick={() => setError(null)}
-          title="クリックで閉じる"
+          title="Click to dismiss"
         >
           ⚠ {error}
         </div>
@@ -2957,7 +2957,7 @@ export default function App() {
           onClearBrowser={clearBrowser}
           onResetPluginConsent={() => {
             localStorage.removeItem(PLUGIN_CONSENT_KEY);
-            setInfo("プラグイン実行の許可をリセットしました");
+            setInfo("Plugin execution permission reset");
           }}
           onClose={() => setShowSettings(false)}
         />
@@ -3735,7 +3735,7 @@ function TreeEditorPanel(props: {
             </div>
           ))}
           <div className="ac-popup-help">
-            ↑↓ 選択 / Tab/Enter 確定 / Esc キャンセル
+            ↑↓ select / Tab/Enter accept / Esc cancel
           </div>
         </div>
       )}
@@ -4378,7 +4378,7 @@ function CssEditor(props: {
       >
         {props.inherited.length === 0 ? (
           <div className="css-section-empty">
-            継承プロパティはありません
+            No inherited properties
           </div>
         ) : (
           props.inherited.map((d, i) => {
@@ -4391,15 +4391,15 @@ function CssEditor(props: {
                 }`}
                 title={
                   disabled
-                    ? `${d.prop} は遮断中 (チェックボックスで復帰)`
-                    : `${d.source.name} から継承`
+                    ? `${d.prop} is blocked (re-enable with the checkbox)`
+                    : `inherited from ${d.source.name}`
                 }
               >
                 {props.onToggleInherited && (
                   <button
                     type="button"
                     className="css-inherited-toggle"
-                    title={disabled ? "継承を有効にする" : "継承を遮断する"}
+                    title={disabled ? "Enable inheritance" : "Block inheritance"}
                     onClick={(e) => {
                       e.stopPropagation();
                       props.onToggleInherited!(d.prop);
@@ -4453,7 +4453,7 @@ function CssEditor(props: {
           if (visibleDefs.length === 0 && orphanNames.length === 0) {
             return (
               <div className="css-section-empty">
-                クラスはまだ登録されていません。CLASSES タブで追加してください。
+                No classes registered yet. Add them in the CLASSES tab.
               </div>
             );
           }
@@ -4477,8 +4477,8 @@ function CssEditor(props: {
                     title={
                       props.onToggleClass
                         ? isApplied
-                          ? "クリックして除外"
-                          : "クリックして適用"
+                          ? "Click to remove"
+                          : "Click to apply"
                         : ""
                     }
                   >
@@ -4498,7 +4498,7 @@ function CssEditor(props: {
                         <button
                           type="button"
                           className="class-card-delete"
-                          title="この要素のリストから削除"
+                          title="Remove from this element's list"
                           onClick={(e) => {
                             e.stopPropagation();
                             props.onDeleteClassFromElement!(stripped);
@@ -4518,7 +4518,7 @@ function CssEditor(props: {
                   className={`class-card orphan ${
                     props.appliedClassNames.includes(name) ? "applied" : ""
                   }`}
-                  title="クラス定義が見つかりません"
+                  title="Class definition not found"
                 >
                   <div
                     className="class-card-head"
@@ -4530,12 +4530,12 @@ function CssEditor(props: {
                       {props.appliedClassNames.includes(name) ? "☑" : "☐"}
                     </span>
                     <span className="class-card-name">.{name}</span>
-                    <span className="class-card-source">(未定義)</span>
+                    <span className="class-card-source">(undefined)</span>
                     {props.onDeleteClassFromElement && (
                       <button
                         type="button"
                         className="class-card-delete"
-                        title="この要素のリストから削除"
+                        title="Remove from this element's list"
                         onClick={(e) => {
                           e.stopPropagation();
                           props.onDeleteClassFromElement!(name);
@@ -4598,19 +4598,19 @@ function CssEditor(props: {
       >
         {props.basin.length === 0 ? (
           <div className="css-section-empty">
-            最終適用プロパティはありません
+            No final applied properties
           </div>
         ) : (
           props.basin.map((b, i) => {
             const isMix = !!b.shadows && b.shadows.length > 0;
             const winnerDesc =
               b.layer === "inherited"
-                ? `継承元: ${b.sourceLabel}`
+                ? `Inherited from: ${b.sourceLabel}`
                 : b.layer === "class"
-                ? `クラス: ${b.sourceLabel}${b.classFile ? ` (${b.classFile})` : ""}`
+                ? `Class: ${b.sourceLabel}${b.classFile ? ` (${b.classFile})` : ""}`
                 : b.layer === "stacked"
-                ? `祖先 + 自身の合算: ${b.sourceLabel}`
-                : "この要素の CSS";
+                ? `Ancestors + self combined: ${b.sourceLabel}`
+                : "This element's CSS";
             const tooltip = isMix
               ? [
                   `winner: ${b.layer} ${b.sourceLabel} → ${b.value}`,
@@ -4673,7 +4673,7 @@ function CssEditor(props: {
             </div>
           ))}
           <div className="ac-popup-help">
-            ↑↓ 選択 / Tab/Enter 確定 / Esc キャンセル
+            ↑↓ select / Tab/Enter accept / Esc cancel
           </div>
         </div>
       )}
@@ -4974,7 +4974,7 @@ function CssBareEditor(props: {
             </div>
           ))}
           <div className="ac-popup-help">
-            ↑↓ 選択 / Tab/Enter 確定 / Esc キャンセル
+            ↑↓ select / Tab/Enter accept / Esc cancel
           </div>
         </div>
       )}
@@ -5047,7 +5047,7 @@ function JsEditor(props: { value: string; onChange: (v: string) => void }) {
         spellCheck={false}
         value={props.value}
         placeholder={
-          "// el はこの要素を指します\n// 例:\n// el.addEventListener('click', () => {\n//   el.textContent = 'クリック済み';\n// });"
+          "// el refers to this element\n// Example:\n// el.addEventListener('click', () => {\n//   el.textContent = 'clicked';\n// });"
         }
         onChange={(e) => props.onChange(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -5434,21 +5434,21 @@ function PluginsModal(props: {
     <div className="modal-bg" onClick={props.onClose}>
       <div className="modal plugins-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <span>プラグイン ({props.plugins.length})</span>
+          <span>Plugins ({props.plugins.length})</span>
           <button onClick={props.onClose}>×</button>
         </div>
         <div className="plugins-body">
           <div className="plugins-toolbar">
-            <button onClick={props.onReload}>⟳ 再読み込み</button>
+            <button onClick={props.onReload}>⟳ Reload</button>
             <span className="plugins-hint">
-              各プロジェクトの <code>plugins/&lt;name&gt;/plugin.yaml</code> を読み込みます
+              Loads each project's <code>plugins/&lt;name&gt;/plugin.yaml</code>
             </span>
           </div>
           {props.plugins.length === 0 ? (
             <div className="plugins-empty">
-              プラグインがありません。
-              <code>plugins/</code> にフォルダを作り
-              <code>plugin.yaml</code> を置いてください。
+              No plugins.
+              Create a folder under <code>plugins/</code>
+              and add a <code>plugin.yaml</code>.
             </div>
           ) : (
             props.plugins.map((p) => (
@@ -5465,7 +5465,7 @@ function PluginsModal(props: {
                 )}
                 {(p.manifest.exporters ?? []).length > 0 && (
                   <div className="plugin-section">
-                    <div className="plugin-section-title">エクスポータ</div>
+                    <div className="plugin-section-title">Exporters</div>
                     <div className="plugin-chip-row">
                       {p.manifest.exporters!.map((exp) => (
                         <button
@@ -5483,7 +5483,7 @@ function PluginsModal(props: {
                 {(p.manifest.classes ?? []).length > 0 && (
                   <div className="plugin-section">
                     <div className="plugin-section-title">
-                      クラス辞書 ({p.manifest.classes!.length})
+                      Class dictionary ({p.manifest.classes!.length})
                     </div>
                     <div className="plugin-chip-row">
                       {p.manifest.classes!.slice(0, 60).map((c) => {
@@ -5494,7 +5494,7 @@ function PluginsModal(props: {
                             className={`plugin-chip dict ${on ? "on" : ""}`}
                             title={
                               props.hasSelection
-                                ? `${c.description ?? ""}\nクリックで選択要素に適用/解除`
+                                ? `${c.description ?? ""}\nClick to apply/remove on the selected element`
                                 : c.description
                             }
                             disabled={!props.hasSelection}
@@ -5512,7 +5512,7 @@ function PluginsModal(props: {
                 )}
                 {(p.manifest.snippets ?? []).length > 0 && (
                   <div className="plugin-section">
-                    <div className="plugin-section-title">スニペット</div>
+                    <div className="plugin-section-title">Snippets</div>
                     <div className="plugin-chip-row">
                       {p.manifest.snippets!.map((s) => (
                         <button
@@ -5534,7 +5534,7 @@ function PluginsModal(props: {
           )}
         </div>
         <div className="plugins-foot">
-          ⚠ プラグインの JS はワーカー内で実行されますが、信頼できるものだけ導入してください。
+          ⚠ Plugin JS runs in a worker, but only install plugins you trust.
         </div>
       </div>
     </div>
@@ -5820,10 +5820,10 @@ function searchTree(root: TreeNode, queryRaw: string): SearchHit[] {
       const content = (cfg.content ?? "").toLowerCase();
       const css = (cfg.css ?? "").toLowerCase();
       let reason = "";
-      if (tag.includes(q)) reason = "タグ名";
+      if (tag.includes(q)) reason = "tag";
       else if (id.includes(q)) reason = `id="${cfg.id}"`;
       else if (classes.includes(q)) reason = `class: ${(cfg.classes ?? []).join(" ")}`;
-      else if (content.includes(q)) reason = "本文";
+      else if (content.includes(q)) reason = "content";
       else if (css.includes(q)) reason = "CSS";
       if (reason) {
         hits.push({
@@ -5857,11 +5857,11 @@ function SearchModal(props: {
         className="modal search-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="プロジェクト内検索"
+        aria-label="Search in project"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
-          <span>検索 (タグ名 / id / class / 本文 / CSS)</span>
+          <span>Search (tag / id / class / content / CSS)</span>
           <button aria-label="閉じる" onClick={props.onClose}>
             ×
           </button>
@@ -5871,7 +5871,7 @@ function SearchModal(props: {
             ref={inputRef}
             className="search-input"
             value={query}
-            placeholder="検索キーワード..."
+            placeholder="Search keyword..."
             spellCheck={false}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -5882,8 +5882,8 @@ function SearchModal(props: {
           />
           <div className="search-count">
             {query.trim()
-              ? `${hits.length} 件${hits.length >= 200 ? " (上限)" : ""}`
-              : "キーワードを入力してください"}
+              ? `${hits.length} hit(s)${hits.length >= 200 ? " (max)" : ""}`
+              : "Type a keyword"}
           </div>
           <div className="search-results">
             {hits.map((h) => (
@@ -5919,7 +5919,7 @@ function PreviewModal(props: { html: string; onClose: () => void }) {
           sandbox="allow-same-origin"
         />
         <details className="preview-source">
-          <summary>HTML ソース</summary>
+          <summary>HTML source</summary>
           <pre>{props.html}</pre>
         </details>
       </div>
@@ -5941,16 +5941,16 @@ function ImagesTab(props: {
     <div className="images-tab">
       <div className="classes-list-pane">
         <div className="classes-list-toolbar">
-          <button onClick={props.onRefresh} title="再読み込み">
-            ⟳ 更新
+          <button onClick={props.onRefresh} title="Reload">
+            ⟳ Refresh
           </button>
         </div>
         <div className="classes-list-rows">
           {props.folders.length === 0 && (
             <div className="classes-list-empty">
-              images/ にサブフォルダがありません。OS のエクスプローラ等で
+              No subfolders under images/. Use your OS file explorer
               <br />
-              フォルダを追加して画像を入れてから「更新」を押してください。
+              to add folders with images, then press “Refresh”.
             </div>
           )}
           {props.folders.map((f) => (
@@ -5962,14 +5962,14 @@ function ImagesTab(props: {
               onClick={() => props.onSelectFolder(f.name)}
             >
               <div className="classes-list-row-name">{f.name}</div>
-              <div className="images-row-sub">{f.images.length} 枚</div>
+              <div className="images-row-sub">{f.images.length}</div>
             </div>
           ))}
         </div>
         <div className="classes-help">
-          要素を選んでから画像をクリックすると、
-          <code>&lt;img&gt;</code> なら <code>src</code>、それ以外なら
-          <code>background-image</code> として適用されます。
+          Select an element, then click an image:
+          for <code>&lt;img&gt;</code> it sets <code>src</code>, otherwise
+          it is applied as <code>background-image</code>.
         </div>
       </div>
       <div className="classes-detail-pane">
@@ -5977,7 +5977,7 @@ function ImagesTab(props: {
           <div className="images-grid">
             {current.images.length === 0 && (
               <div className="editor-empty">
-                このフォルダに画像がありません
+                No images in this folder
               </div>
             )}
             {current.images.map((rel) => {
@@ -5993,8 +5993,8 @@ function ImagesTab(props: {
                   disabled={!props.hasSelectedElement}
                   title={
                     props.hasSelectedElement
-                      ? `クリックで適用: /images/${rel}`
-                      : "DOM ツリーで要素を選択してください"
+                      ? `Click to apply: /images/${rel}`
+                      : "Select an element in the DOM tree"
                   }
                   onClick={() => props.onApply(rel)}
                 >
@@ -6008,7 +6008,7 @@ function ImagesTab(props: {
           </div>
         ) : (
           <div className="editor-empty">
-            左から画像フォルダを選択してください
+            Select an image folder on the left
           </div>
         )}
       </div>
@@ -6043,15 +6043,15 @@ function ClassesTab(props: {
     <div className="classes-tab">
       <div className="classes-list-pane">
         <div className="classes-list-toolbar">
-          <button onClick={props.onAdd}>＋ 新規</button>
+          <button onClick={props.onAdd}>＋ New</button>
           <button onClick={props.onDelete} disabled={!props.selected}>
-            － 削除
+            － Delete
           </button>
         </div>
         <div className="classes-list-rows">
           {props.files.length === 0 && (
             <div className="classes-list-empty">
-              ファイルがありません。「＋ 新規」で追加してください。
+              No files. Use “＋ New” to add one.
             </div>
           )}
           {props.files.map((f) => (
@@ -6067,8 +6067,8 @@ function ClassesTab(props: {
           ))}
         </div>
         <div className="classes-help">
-          先頭の <code>01_</code>, <code>02_</code> がカスケード順になります。
-          <code>$colorMain</code> 等の変数も使用可。
+          The leading <code>01_</code>, <code>02_</code> sets the cascade order.
+          Variables like <code>$colorMain</code> are also supported.
         </div>
       </div>
       <div className="classes-detail-pane">
@@ -6077,18 +6077,18 @@ function ClassesTab(props: {
             <div className="classes-chip-panel">
               <div className="classes-chip-header">
                 <span className="classes-chip-title">
-                  {props.selected} のクラス ({chips.length})
+                  Classes in {props.selected} ({chips.length})
                 </span>
                 <span className="classes-chip-hint">
                   {props.hasSelectedElement
-                    ? "クリックで選択要素に追加 / 解除"
-                    : "DOM ツリーで要素を選んでください"}
+                    ? "Click to add to / remove from the selected element"
+                    : "Select an element in the DOM tree"}
                 </span>
               </div>
               <div className="classes-chip-list">
                 {chips.length === 0 && (
                   <div className="css-section-empty">
-                    このファイルにクラス定義がありません
+                    No class definitions in this file
                   </div>
                 )}
                 {chips.map((c, i) => {
@@ -6105,9 +6105,9 @@ function ClassesTab(props: {
                       title={
                         props.hasSelectedElement
                           ? inPool
-                            ? "選択要素のリストから外す"
-                            : "選択要素のリストに追加"
-                          : "要素未選択"
+                            ? "Remove from the selected element's list"
+                            : "Add to the selected element's list"
+                          : "No element selected"
                       }
                       onClick={() => props.onToggleAvailable(stripped)}
                     >
@@ -6130,7 +6130,7 @@ function ClassesTab(props: {
           </>
         ) : (
           <div className="editor-empty">
-            左のリストからファイルを選択するか、「＋ 新規」で追加してください
+            Select a file from the list on the left, or add one with “＋ New”
           </div>
         )}
       </div>
