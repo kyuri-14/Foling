@@ -116,4 +116,61 @@ export const ja: LocaleDict = {
   License: "ライセンス",
   "Built with": "技術",
   "About Foling": "Foling について",
+  Changelog: "変更履歴",
+
+  // Tree rows / context menu
+  Line: "行",
+  Expand: "展開",
+  Collapse: "折りたたみ",
+  "(tag name)": "(タグ名)",
+  '"{name}" is not a known HTML tag; it is rendered as <div> on build.':
+    "「{name}」は既知の HTML タグではありません。出力時は <div> として扱われます。",
+  "Unknown tag → rendered as div": "不明なタグ → div として出力",
+  "Edit content (text / image / attributes)":
+    "内容を編集 (テキスト / 画像 / 属性)",
+  "Empty tree. Press Enter on a row to add an element.":
+    "空のツリーです。行で Enter を押すと要素を追加できます。",
+  "Copy (CSS + CONTENT + children)": "コピー (CSS + CONTENT + 子要素)",
+  "Paste (as sibling)": "ペースト (兄弟として貼り付け)",
+  "Add child": "子要素を追加",
+  "Add sibling below": "直下に兄弟を追加",
+
+  // Prompts / confirms
+  "Select a parent node": "親ノードを選択してください",
+  "Tag name to add (e.g. div, section, p)":
+    "追加するタグ名 (例: div, section, p)",
+  "Invalid tag name": "タグ名が無効です",
+  "Delete?": "削除しますか?",
+  "New folder name": "新しいフォルダ名",
+
+  // Keyboard shortcuts modal
+  "Keyboard shortcuts": "キーボードショートカット",
+  "Save (tree / selected element / class file)":
+    "保存 (ツリー / 選択要素 / クラスファイル)",
+  Undo: "元に戻す",
+  Redo: "やり直し",
+  "Search in project": "プロジェクト内を検索",
+  "Toggle the element editor (text / image)":
+    "要素エディタの表示切替 (テキスト / 画像)",
+  "Delete the selected element and its subtree":
+    "選択要素とその中身を削除",
+  "Tree: add a child element": "ツリー: 子要素を追加",
+  "Tree: add a sibling / outdent an empty row":
+    "ツリー: 同階層に追加 / 空行ならインデント解除",
+  "Tree: indent / outdent": "ツリー: インデントを上げる / 下げる",
+  "Tree: outdent / delete the row": "ツリー: インデント解除 / 行を削除",
+  "Tree: move between rows": "ツリー: 行間を移動",
+  "Tree: move the selected row / change depth":
+    "ツリー: 選択行を移動 / 階層変更",
+  "Tree: copy / paste an element with its subtree":
+    "ツリー: 要素をサブツリーごとコピー / 貼り付け",
+  "Close dialog / autocomplete": "ダイアログ / 予測変換を閉じる",
+
+  // Variables modal
+  "Project variables": "プロジェクト変数",
+  "Reference them in CSS and attribute values like $colorMain. Saved to variables: in htfl.yaml.":
+    "CSS や属性値の中で $colorMain のように参照できます。値は htfl.yaml の variables: に保存されます。",
+  "No variables yet. Use “＋ Add variable” to create one.":
+    "変数がありません。「＋ 変数を追加」で 1 つ作成してください。",
+  "＋ Add variable": "＋ 変数を追加",
 };

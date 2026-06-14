@@ -2322,14 +2322,14 @@ export default function App() {
   async function addChild() {
     const targetPath = selectedPath ?? tree?.path;
     if (!targetPath || !tree) {
-      setError("親ノードを選択してください");
+      setError(t("Select a parent node"));
       return;
     }
-    const tag = window.prompt("追加するタグ名 (例: div, section, p)", "div");
+    const tag = window.prompt(t("Tag name to add (e.g. div, section, p)"), "div");
     if (!tag) return;
     const safeTag = tag.trim().replace(/[^a-zA-Z0-9_-]/g, "");
     if (!safeTag) {
-      setError("タグ名が無効です");
+      setError(t("Invalid tag name"));
       return;
     }
     const target = findNode(tree, targetPath);
@@ -2350,7 +2350,7 @@ export default function App() {
     if (!selectedPath) return;
     const segs = selectedPath.split(/[\\/]/);
     const dispName = segs[segs.length - 1] ?? "";
-    if (!window.confirm(`削除しますか?\n${dispName}`)) return;
+    if (!window.confirm(`${t("Delete?")}\n${dispName}`)) return;
     try {
       const snapshot = await snapshotSubtree(selectedPath);
       const parent = segs.slice(0, -1).join("\\");
@@ -2366,7 +2366,7 @@ export default function App() {
   async function renameSelected() {
     if (!selectedPath) return;
     const cur = selectedPath.split(/[\\/]/).pop() ?? "";
-    const next = window.prompt("新しいフォルダ名", cur);
+    const next = window.prompt(t("New folder name"), cur);
     if (!next || next === cur) return;
     try {
       const newPath = await renameNode(selectedPath, next);
@@ -3636,7 +3636,7 @@ function TreeEditorPanel(props: {
         })()}
         {visible.length === 0 && (
           <div className="tree-empty">
-            空のツリーです。「＋」を押して要素を追加してください。
+            {t("Empty tree. Press Enter on a row to add an element.")}
           </div>
         )}
       </div>
@@ -3671,7 +3671,7 @@ function TreeEditorPanel(props: {
               setContextMenu(null);
             }}
           >
-            コピー (CSS + CONTENT + 子要素)
+            {t("Copy (CSS + CONTENT + children)")}
           </div>
           <div
             className={`tree-context-item ${props.hasClipboard ? "" : "disabled"}`}
@@ -3681,7 +3681,7 @@ function TreeEditorPanel(props: {
               setContextMenu(null);
             }}
           >
-            ペースト (兄弟として貼り付け)
+            {t("Paste (as sibling)")}
           </div>
           <div
             className="tree-context-item"
@@ -3690,7 +3690,7 @@ function TreeEditorPanel(props: {
               setContextMenu(null);
             }}
           >
-            子要素を追加
+            {t("Add child")}
           </div>
           <div
             className="tree-context-item"
@@ -3699,7 +3699,7 @@ function TreeEditorPanel(props: {
               setContextMenu(null);
             }}
           >
-            直下に兄弟を追加
+            {t("Add sibling below")}
           </div>
           <div className="tree-context-divider" />
           <div
@@ -3709,7 +3709,7 @@ function TreeEditorPanel(props: {
               setContextMenu(null);
             }}
           >
-            削除
+            {t("Delete")}
           </div>
         </div>
       )}
@@ -3784,7 +3784,7 @@ function TreeRowComponent(props: {
         .join(" ")}
       onContextMenu={props.onContextMenu}
     >
-      <span className="tree-line-num" title={`行 ${props.lineNumber}`}>
+      <span className="tree-line-num" title={`${t("Line")} ${props.lineNumber}`}>
         {String(props.lineNumber).padStart(props.linePad, "0")}
       </span>
       {Array.from({ length: props.row.depth }).map((_, i) => (
@@ -3796,8 +3796,8 @@ function TreeRowComponent(props: {
         title={
           props.hasChildren
             ? props.row.collapsed
-              ? "展開"
-              : "折りたたみ"
+              ? t("Expand")
+              : t("Collapse")
             : ""
         }
         onClick={(e) => {
@@ -3812,11 +3812,13 @@ function TreeRowComponent(props: {
         className={`tree-row-input ${props.unknownTag ? "unknown-tag" : ""}`}
         data-row-index={props.index}
         value={props.row.name}
-        placeholder="(タグ名)"
+        placeholder={t("(tag name)")}
         spellCheck={false}
         title={
           props.unknownTag
-            ? `「${props.row.name}」は既知の HTML タグではありません。出力時は <div> として扱われます。`
+            ? t(
+                '"{name}" is not a known HTML tag; it is rendered as <div> on build.'
+              ).replace("{name}", props.row.name)
             : undefined
         }
         onChange={props.onChange}
@@ -3825,14 +3827,17 @@ function TreeRowComponent(props: {
         onBlur={props.onCommit}
       />
       {props.unknownTag && (
-        <span className="tree-unknown-badge" title="不明なタグ → div として出力">
+        <span
+          className="tree-unknown-badge"
+          title={t("Unknown tag → rendered as div")}
+        >
           ⚠ div
         </span>
       )}
       <button
         type="button"
         className="tree-edit-btn"
-        title="内容を編集 (テキスト / 画像 / 属性)"
+        title={t("Edit content (text / image / attributes)")}
         onClick={(e) => {
           e.stopPropagation();
           props.onEdit();
@@ -5342,13 +5347,14 @@ function VariablesModal(props: {
     <div className="modal-bg" onClick={props.onClose}>
       <div className="modal vars-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <span>プロジェクト変数</span>
+          <span>{t("Project variables")}</span>
           <button onClick={props.onClose}>×</button>
         </div>
         <div className="vars-body">
           <div className="vars-help">
-            CSS や属性値の中で <code>$colorMain</code> のように参照できます。
-            値は <code>htfl.yaml</code> の <code>variables:</code> に保存されます。
+            {t(
+              "Reference them in CSS and attribute values like $colorMain. Saved to variables: in htfl.yaml."
+            )}
           </div>
           <div className="vars-table">
             <div className="vars-row vars-row-head">
@@ -5358,7 +5364,7 @@ function VariablesModal(props: {
             </div>
             {rows.length === 0 && (
               <div className="vars-empty">
-                変数がありません。「＋ 追加」で 1 つ作成してください。
+                {t("No variables yet. Use “＋ Add variable” to create one.")}
               </div>
             )}
             {rows.map((r, i) => (
@@ -5390,7 +5396,7 @@ function VariablesModal(props: {
                 <div className="vars-col-actions">
                   <button
                     type="button"
-                    title="削除"
+                    title={t("Delete")}
                     onClick={() => remove(i)}
                   >
                     ×
@@ -5400,13 +5406,13 @@ function VariablesModal(props: {
             ))}
           </div>
           <button className="vars-add" type="button" onClick={add}>
-            ＋ 変数を追加
+            {t("＋ Add variable")}
           </button>
         </div>
         <div className="vars-foot">
-          <button onClick={props.onClose}>キャンセル</button>
+          <button onClick={props.onClose}>{t("Cancel")}</button>
           <button className="primary" onClick={save}>
-            保存
+            {t("Save")}
           </button>
         </div>
       </div>
@@ -5674,18 +5680,20 @@ function SettingsModal(props: {
 }
 
 const SHORTCUTS: { keys: string; desc: string }[] = [
-  { keys: "Ctrl+S", desc: "保存 (ツリー / 選択要素 / クラスファイル)" },
-  { keys: "Ctrl+Z", desc: "元に戻す" },
-  { keys: "Ctrl+Y / Ctrl+Shift+Z", desc: "やり直し" },
-  { keys: "Ctrl+Shift+F", desc: "プロジェクト内を検索" },
-  { keys: "Enter", desc: "ツリー: 子要素を追加" },
-  { keys: "Shift+Enter", desc: "ツリー: 同階層に追加 / 空行ならインデント解除" },
-  { keys: "Tab / Shift+Tab", desc: "ツリー: インデントを上げる / 下げる" },
-  { keys: "Backspace (空行)", desc: "ツリー: インデント解除 / 行を削除" },
-  { keys: "↑ / ↓", desc: "ツリー: 行間を移動" },
-  { keys: "Alt+↑ / ↓ / ← / →", desc: "ツリー: 選択行を移動 / 階層変更" },
-  { keys: "Ctrl+C / Ctrl+V", desc: "ツリー: 要素をサブツリーごとコピー / 貼り付け" },
-  { keys: "Esc", desc: "ダイアログ / 予測変換を閉じる" },
+  { keys: "Ctrl+S", desc: "Save (tree / selected element / class file)" },
+  { keys: "Ctrl+Z", desc: "Undo" },
+  { keys: "Ctrl+Y / Ctrl+Shift+Z", desc: "Redo" },
+  { keys: "Ctrl+Shift+F", desc: "Search in project" },
+  { keys: "Ctrl+T", desc: "Toggle the element editor (text / image)" },
+  { keys: "Shift+Delete", desc: "Delete the selected element and its subtree" },
+  { keys: "Enter", desc: "Tree: add a child element" },
+  { keys: "Shift+Enter", desc: "Tree: add a sibling / outdent an empty row" },
+  { keys: "Tab / Shift+Tab", desc: "Tree: indent / outdent" },
+  { keys: "Backspace (empty row)", desc: "Tree: outdent / delete the row" },
+  { keys: "↑ / ↓", desc: "Tree: move between rows" },
+  { keys: "Alt+↑ / ↓ / ← / →", desc: "Tree: move the selected row / change depth" },
+  { keys: "Ctrl+C / Ctrl+V", desc: "Tree: copy / paste an element with its subtree" },
+  { keys: "Esc", desc: "Close dialog / autocomplete" },
 ];
 
 function ShortcutsModal(props: { onClose: () => void }) {
@@ -5696,12 +5704,12 @@ function ShortcutsModal(props: { onClose: () => void }) {
         className="modal shortcuts-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="キーボードショートカット"
+        aria-label={t("Keyboard shortcuts")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
-          <span>キーボードショートカット</span>
-          <button aria-label="閉じる" onClick={props.onClose}>
+          <span>{t("Keyboard shortcuts")}</span>
+          <button aria-label={t("Close")} onClick={props.onClose}>
             ×
           </button>
         </div>
@@ -5713,7 +5721,7 @@ function ShortcutsModal(props: { onClose: () => void }) {
                   <td className="shortcut-keys">
                     <kbd>{s.keys}</kbd>
                   </td>
-                  <td>{s.desc}</td>
+                  <td>{t(s.desc)}</td>
                 </tr>
               ))}
             </tbody>
