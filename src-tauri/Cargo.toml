@@ -1,7 +1,7 @@
 [package]
 name = "foling-editor"
-version = "0.1.0"
-description = "Foling Editor — HTFL (HyperText Foldering Language) editor"
+version = "0.10.0"
+description = "Foling — HTFL (HyperText Foldering Language) editor"
 authors = ["大松雄斗"]
 license = "GPL-3.0-or-later"
 edition = "2021"

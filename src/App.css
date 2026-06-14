@@ -385,9 +385,10 @@ select {
   user-select: none;
   line-height: 1.7;
   position: relative;
-  /* Force the row to be at least as wide as its content so deep indents
-     become horizontally scrollable instead of getting clipped. */
-  min-width: max-content;
+  /* At least the full panel width (so the right-pinned ✎ button lines up on
+     every row), and `max-content` when deep indentation overflows (then the
+     row scrolls horizontally). */
+  min-width: 100%;
   width: max-content;
 }
 
@@ -428,8 +429,9 @@ select {
   background: rgba(0, 0, 0, 0.15);
 }
 
-/* Fixed-position chevron, right after the line-number column. Invisible
-   variant keeps the column aligned for leaf rows. */
+/* Expand/collapse chevron. Sits AFTER the depth indent guides so its
+   horizontal position reflects the element's nesting depth. The invisible
+   variant keeps leaf rows aligned with their siblings. */
 .tree-fold-btn {
   flex: 0 0 auto;
   width: 18px;
@@ -456,13 +458,13 @@ select {
    carrying a right-side border at its trailing edge. */
 .tree-indent-guide {
   flex: 0 0 auto;
-  width: 14px;
+  width: 18px;
   align-self: stretch;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .tree-row:hover .tree-indent-guide {
-  border-right-color: rgba(255, 255, 255, 0.15);
+  border-right-color: rgba(255, 255, 255, 0.28);
 }
 
 .tree-row-input {
@@ -2397,21 +2399,38 @@ button.secondary {
 }
 
 /* ── Tree row ✎ edit button ───────────────────────────────────────── */
+/* Always visible and pinned to the right edge of the tree panel (sticky),
+   so every row's edit button lines up at the same x — reachable without
+   horizontal scrolling, even on deeply-indented rows. */
 .tree-edit-btn {
   margin-left: auto;
+  position: sticky;
+  right: 0;
   flex: 0 0 auto;
-  width: 22px;
-  height: 20px;
+  width: 26px;
+  align-self: stretch;
   border: none;
-  background: transparent;
-  color: #7c8696;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--c-tree-bg);
+  color: #8a94a4;
   cursor: pointer;
-  border-radius: 4px;
   font-size: 0.85rem;
-  opacity: 0;
 }
-.tree-row:hover .tree-edit-btn { opacity: 1; }
-.tree-edit-btn:hover { background: #2a3340; color: #fff; }
+.tree-row:hover .tree-edit-btn {
+  background: #131313;
+  color: #fff;
+}
+.tree-row.selected .tree-edit-btn {
+  background: var(--c-tree-selected);
+  color: #fff;
+}
+.tree-row.highlight-source .tree-edit-btn {
+  background: var(--c-tree-on-path);
+}
+.tree-edit-btn:hover {
+  color: #fff;
+  background: #2a3340;
+}
 
 .tree-view-label {
   font-size: 0.8rem;
@@ -2539,4 +2558,16 @@ button.secondary {
   background: #1a1f29;
   color: #e8edf2;
   cursor: pointer;
+}
+
+/* ── Changelog modal ──────────────────────────────────────────────── */
+.changelog-modal { width: 720px; max-width: 92vw; height: 78vh; display: grid; grid-template-rows: auto 1fr; }
+.changelog-body { overflow: auto; padding: 0 18px 18px; }
+.changelog-body pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: #cdd6e4;
 }

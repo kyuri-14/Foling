@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { t, setLocaleDict, useLocaleVersion } from "./i18n";
+import { ja } from "./locales/ja";
+import changelogText from "../CHANGELOG.md?raw";
 import {
   buildHtml,
   createNode,
@@ -62,11 +65,18 @@ type TabKey = "css" | "js" | "classes";
 const LAST_PROJECT_KEY = "foling.lastProject";
 const BROWSER_KEY = "foling.previewBrowser";
 const PLUGIN_CONSENT_KEY = "foling.pluginConsent";
+const LOCALE_KEY = "foling.locale";
 const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
 // Keep in sync with package.json / tauri.conf.json on release.
-const APP_VERSION = "0.1.0";
+const APP_VERSION = "0.10.0";
 // Set to the public repository URL once published (shown in the About dialog).
 const REPO_URL = "";
+
+// Apply the saved UI language as early as possible so the first render is
+// already localized. English is the default (no pack).
+if (localStorage.getItem(LOCALE_KEY) === "ja") {
+  setLocaleDict(ja);
+}
 
 // Common CSS properties for autocomplete (alphabetical, not exhaustive).
 const CSS_PROPERTIES = [
@@ -1199,6 +1209,8 @@ function nextOrderPrefix(siblings: TreeNode[]): string {
 }
 
 export default function App() {
+  // Re-render the whole tree when the UI language changes so t() output updates.
+  useLocaleVersion();
   const [projectRoot, setProjectRoot] = useState<string | null>(null);
   const [tree, setTree] = useState<TreeNode | null>(null);
   const [projectConfig, setProjectConfig] = useState<ProjectConfig>({
@@ -1214,6 +1226,10 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
+  const [locale, setLocale] = useState<"en" | "ja">(
+    () => (localStorage.getItem(LOCALE_KEY) === "ja" ? "ja" : "en")
+  );
   const [showSearch, setShowSearch] = useState(false);
   // Close the top menu when the user clicks anywhere outside it.
   useEffect(() => {
@@ -1439,6 +1455,34 @@ export default function App() {
         runUndo();
       }
 
+      // Ctrl+T — toggle the element editor (text / image) for the selected
+      // element. Press again to close (= finish text input).
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "t") {
+        e.preventDefault();
+        if (elementEdit) {
+          setElementEdit(null);
+          return;
+        }
+        if (!selectedPath) return;
+        const idx = rows.findIndex((r) => r.actualPath === selectedPath);
+        if (idx < 0) return;
+        openElementEditor(rows[idx], idx + 1);
+        return;
+      }
+
+      // Shift+Delete — delete the selected element (and its whole subtree).
+      // Leaves native cut/delete intact when typing in a real text field.
+      if (e.shiftKey && e.key === "Delete") {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName ?? "";
+        const isTreeInput = !!target?.classList?.contains("tree-row-input");
+        if ((tag === "TEXTAREA" || tag === "INPUT") && !isTreeInput) return;
+        if (!selectedPath) return;
+        e.preventDefault();
+        deleteSelected();
+        return;
+      }
+
       // Alt + arrow keys — move the selected row.
       // Only fires when focus is in a tree-row-input, so users keep native
       // word-navigation in other inputs / textareas.
@@ -1483,6 +1527,7 @@ export default function App() {
     treeDirty,
     rows,
     tree,
+    elementEdit,
   ]);
 
   // Tracks which path the in-memory `config` was loaded for. Guards the
@@ -2619,6 +2664,14 @@ export default function App() {
     }
   }
 
+  // Switch the UI language. English is the default; "ja" activates the
+  // Japanese language pack. Persisted so the next launch starts localized.
+  function changeLocale(next: "en" | "ja") {
+    setLocale(next);
+    localStorage.setItem(LOCALE_KEY, next);
+    setLocaleDict(next === "ja" ? ja : null);
+  }
+
   // Output mode: "ssr+js" (default, emits the SCRIPT/JS layer) ⇄ "ssr"
   // (static only — page works with JavaScript disabled).
   async function setOutputMode(mode: "ssr" | "ssr+js") {
@@ -2726,6 +2779,7 @@ export default function App() {
         onOpenSettings={() => setShowSettings(true)}
         onOpenShortcuts={() => setShowShortcuts(true)}
         onOpenAbout={() => setShowAbout(true)}
+        onOpenChangelog={() => setShowChangelog(true)}
         onOpenSearch={() => setShowSearch(true)}
         hasProject={!!projectRoot}
       />
@@ -2894,6 +2948,8 @@ export default function App() {
           cssResetOn={(projectConfig.css_reset ?? true) !== false}
           outputMode={projectConfig.output_mode === "ssr" ? "ssr" : "ssr+js"}
           onSetOutputMode={setOutputMode}
+          locale={locale}
+          onSetLocale={changeLocale}
           hasProject={!!projectRoot}
           browserPath={browserPath}
           onToggleCssReset={toggleCssReset}
@@ -2910,6 +2966,12 @@ export default function App() {
         <ShortcutsModal onClose={() => setShowShortcuts(false)} />
       )}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {showChangelog && (
+        <ChangelogModal
+          text={changelogText}
+          onClose={() => setShowChangelog(false)}
+        />
+      )}
       {showSearch && tree && (
         <SearchModal
           tree={tree}
@@ -2958,6 +3020,7 @@ function MenuBar(props: {
   onOpenSettings: () => void;
   onOpenShortcuts: () => void;
   onOpenAbout: () => void;
+  onOpenChangelog: () => void;
   onOpenSearch: () => void;
   onEditHeadDefault: () => void;
   onEditHeadProjectTags: () => void;
@@ -2971,14 +3034,14 @@ function MenuBar(props: {
   return (
     <div className="menubar" onClick={close}>
       <MenuItem
-        label="FILE"
+        label={t("FILE")}
         open={props.menu === "file"}
         onOpen={() => props.setMenu(props.menu === "file" ? null : "file")}
       >
-        <MenuOption onClick={props.onNew}>新規プロジェクト...</MenuOption>
-        <MenuOption onClick={props.onOpen}>プロジェクトを開く...</MenuOption>
+        <MenuOption onClick={props.onNew}>{t("New Project...")}</MenuOption>
+        <MenuOption onClick={props.onOpen}>{t("Open Project...")}</MenuOption>
         <MenuOption onClick={props.onSave} disabled={!props.canSave}>
-          保存 (Ctrl+S)
+          {t("Save (Ctrl+S)")}
         </MenuOption>
         <div className="menu-divider" />
         <div className="menu-section-label">HEAD</div>
@@ -2986,111 +3049,102 @@ function MenuBar(props: {
           onClick={props.onEditHeadDefault}
           disabled={!props.hasProject}
         >
-          DEFAULT (charset / viewport / lang)...
+          {t("DEFAULT (charset / viewport / lang)...")}
         </MenuOption>
         <MenuOption
           onClick={props.onEditHeadProjectTags}
           disabled={!props.hasProject}
         >
-          PROJECT TAGS (title / 説明 / OGP / favicon)...
+          {t("PROJECT TAGS (title / description / OGP / favicon)...")}
         </MenuOption>
         <div className="menu-divider" />
         <MenuOption onClick={props.onImportHtml}>
-          HTML をインポート... (→ HTFL)
+          {t("Import HTML... (→ HTFL)")}
         </MenuOption>
-        <MenuOption
-          onClick={props.onExportHtml}
-          disabled={!props.hasProject}
-        >
-          HTML をエクスポート... (HTFL →)
+        <MenuOption onClick={props.onExportHtml} disabled={!props.hasProject}>
+          {t("Export HTML... (HTFL →)")}
         </MenuOption>
       </MenuItem>
       <MenuItem
-        label="EDIT"
+        label={t("EDIT")}
         open={props.menu === "edit"}
         onOpen={() => props.setMenu(props.menu === "edit" ? null : "edit")}
       >
         <MenuOption onClick={props.onUndo} disabled={!props.canUndo}>
-          元に戻す (Ctrl+Z)
+          {t("Undo (Ctrl+Z)")}
         </MenuOption>
         <MenuOption onClick={props.onRedo} disabled={!props.canRedo}>
-          やり直し (Ctrl+Y)
+          {t("Redo (Ctrl+Y)")}
         </MenuOption>
         <MenuOption onClick={props.onAddChild} disabled={!props.hasProject}>
-          子要素を追加...
+          {t("Add child...")}
         </MenuOption>
         <MenuOption onClick={props.onRename} disabled={!props.canEdit}>
-          リネーム...
+          {t("Rename...")}
         </MenuOption>
         <MenuOption onClick={props.onDelete} disabled={!props.canEdit}>
-          削除...
+          {t("Delete...")}
         </MenuOption>
         <div className="menu-divider" />
         <MenuOption onClick={props.onOpenSearch} disabled={!props.hasProject}>
-          検索... (Ctrl+Shift+F)
+          {t("Search... (Ctrl+Shift+F)")}
         </MenuOption>
       </MenuItem>
       <MenuItem
-        label="VIEW"
+        label={t("VIEW")}
         open={props.menu === "view"}
         onOpen={() => props.setMenu(props.menu === "view" ? null : "view")}
       >
         <MenuOption onClick={props.onOpenClasses} disabled={!props.hasProject}>
-          クラスファイルを編集...
+          {t("Edit class files...")}
         </MenuOption>
         <MenuOption onClick={props.onEditDoctype} disabled={!props.hasProject}>
-          DOCTYPE を編集...
+          {t("Edit DOCTYPE...")}
         </MenuOption>
-        <MenuOption
-          onClick={props.onEditHtmlAttrs}
-          disabled={!props.hasProject}
-        >
-          &lt;html&gt; 属性を編集...
+        <MenuOption onClick={props.onEditHtmlAttrs} disabled={!props.hasProject}>
+          {t("Edit <html> attributes...")}
         </MenuOption>
-        <MenuOption
-          onClick={props.onEditVariables}
-          disabled={!props.hasProject}
-        >
-          プロジェクト変数を編集...
+        <MenuOption onClick={props.onEditVariables} disabled={!props.hasProject}>
+          {t("Edit project variables...")}
         </MenuOption>
-        <MenuOption
-          onClick={props.onToggleCssReset}
-          disabled={!props.hasProject}
-        >
-          CSS リセット: {props.cssResetOn ? "ON ✓" : "OFF (ブラウザ既定)"}
+        <MenuOption onClick={props.onToggleCssReset} disabled={!props.hasProject}>
+          {t("CSS reset")}:{" "}
+          {props.cssResetOn ? t("ON ✓") : t("OFF (browser default)")}
         </MenuOption>
       </MenuItem>
       <MenuItem
-        label="WINDOW"
+        label={t("WINDOW")}
         open={props.menu === "window"}
         onOpen={() => props.setMenu(props.menu === "window" ? null : "window")}
       >
-        <MenuOption onClick={props.onReload}>再読み込み</MenuOption>
+        <MenuOption onClick={props.onReload}>{t("Reload")}</MenuOption>
         <MenuOption onClick={props.onPickBrowser}>
-          プレビューブラウザを指定...
+          {t("Choose preview browser...")}
           {props.browserPath ? " ✓" : ""}
         </MenuOption>
         <MenuOption
           onClick={props.onClearBrowser}
           disabled={!props.browserPath}
         >
-          既定のブラウザに戻す
+          {t("Reset to default browser")}
         </MenuOption>
         <div className="menu-divider" />
-        <MenuOption onClick={props.onOpenSettings}>設定...</MenuOption>
+        <MenuOption onClick={props.onOpenSettings}>
+          {t("Settings...")}
+        </MenuOption>
       </MenuItem>
       <MenuItem
-        label="PLUGINS"
+        label={t("PLUGINS")}
         open={props.menu === "plugins"}
         onOpen={() =>
           props.setMenu(props.menu === "plugins" ? null : "plugins")
         }
       >
         <MenuOption onClick={props.onOpenPlugins} disabled={!props.hasProject}>
-          プラグイン管理... ({props.plugins.length})
+          {t("Manage plugins...")} ({props.plugins.length})
         </MenuOption>
         <MenuOption onClick={props.onReloadPlugins} disabled={!props.hasProject}>
-          再読み込み
+          {t("Reload plugins")}
         </MenuOption>
         {props.plugins.flatMap((p) =>
           (p.manifest.exporters ?? []).map((exp) => (
@@ -3104,16 +3158,17 @@ function MenuBar(props: {
         )}
       </MenuItem>
       <MenuItem
-        label="HELP"
+        label={t("HELP")}
         open={props.menu === "help"}
         onOpen={() => props.setMenu(props.menu === "help" ? null : "help")}
       >
         <MenuOption onClick={props.onOpenShortcuts}>
-          キーボードショートカット...
+          {t("Keyboard shortcuts...")}
         </MenuOption>
-        <MenuOption onClick={props.onOpenAbout}>
-          Foling Editor について...
+        <MenuOption onClick={props.onOpenChangelog}>
+          {t("Changelog...")}
         </MenuOption>
+        <MenuOption onClick={props.onOpenAbout}>{t("About Foling...")}</MenuOption>
       </MenuItem>
     </div>
   );
@@ -3163,14 +3218,14 @@ function MenuOption(props: {
 function EmptyState(props: { onOpen: () => void; onNew: () => void }) {
   return (
     <div className="empty-state">
-      <h1>Foling Editor</h1>
-      <p>HTFL（HyperText Foldering Language）プロジェクト</p>
+      <h1>Foling</h1>
+      <p>{t("HTFL (HyperText Foldering Language) project")}</p>
       <div className="empty-actions">
         <button className="primary" onClick={props.onNew}>
-          新規プロジェクト
+          {t("New project")}
         </button>
         <button className="secondary" onClick={props.onOpen}>
-          既存プロジェクトを開く
+          {t("Open existing project")}
         </button>
       </div>
     </div>
@@ -3534,34 +3589,12 @@ function TreeEditorPanel(props: {
 
   // Insert a new row as a child of the depth-0 row (body or head) so the
   // "+ root" button does the user-intuitive thing: "add to the visible root."
-  function insertAtViewRoot() {
-    const rootIdx = props.rows.findIndex((r) => r.depth === 0);
-    if (rootIdx < 0) {
-      insertRowAt(props.rows.length, 0);
-      return;
-    }
-    const [, end] = findSubtreeRange(props.rows, rootIdx);
-    insertRowAt(end, 1);
-  }
-
   return (
     <aside className="tree-panel">
       <div className="tree-header">
         <span className="tree-root-label" title={props.projectRoot}>
           {props.projectRoot.split(/[\\/]/).pop()}
         </span>
-        <span className="tree-view-label" title="&lt;body&gt; を編集 (head は FILE → HEAD)">
-          &lt;body&gt;
-        </span>
-        <div className="tree-actions">
-          <button
-            className="tree-btn"
-            title="<body> の子として追加"
-            onClick={insertAtViewRoot}
-          >
-            ＋
-          </button>
-        </div>
       </div>
       <div className="tree-rows">
         {(() => {
@@ -3754,6 +3787,9 @@ function TreeRowComponent(props: {
       <span className="tree-line-num" title={`行 ${props.lineNumber}`}>
         {String(props.lineNumber).padStart(props.linePad, "0")}
       </span>
+      {Array.from({ length: props.row.depth }).map((_, i) => (
+        <span key={i} className="tree-indent-guide" />
+      ))}
       <button
         type="button"
         className={`tree-fold-btn ${props.hasChildren ? "" : "invisible"}`}
@@ -3771,9 +3807,6 @@ function TreeRowComponent(props: {
       >
         {props.hasChildren ? (props.row.collapsed ? "▶" : "▼") : ""}
       </button>
-      {Array.from({ length: props.row.depth }).map((_, i) => (
-        <span key={i} className="tree-indent-guide" />
-      ))}
       <input
         ref={inputRef}
         className={`tree-row-input ${props.unknownTag ? "unknown-tag" : ""}`}
@@ -3853,7 +3886,7 @@ function EditorPanel(props: {
     <main className="editor-panel">
       <div className="breadcrumb">
         {props.breadcrumb.length === 0 ? (
-          <span className="breadcrumb-empty">要素を選択してください</span>
+          <span className="breadcrumb-empty">{t("Select an element")}</span>
         ) : (
           props.breadcrumb.map((seg, i) => (
             <span key={i}>
@@ -3886,12 +3919,12 @@ function EditorPanel(props: {
         </button>
         <span className="dirty-indicator">
           {(props.activeTab === "classes" ? props.classFileDirty : props.dirty)
-            ? "● 未保存"
+            ? t("● unsaved")
             : ""}
         </span>
         <button
           className={`dev-button ${props.devMode ? "active" : ""}`}
-          title="開発プレビュー: 要素クリックでエディタに移動"
+          title={t("Dev preview: click an element to jump to it in the editor")}
           onClick={props.onDev}
         >
           DEV
@@ -3903,7 +3936,7 @@ function EditorPanel(props: {
       <div className="editor-area">
         {!props.selectedPath ? (
           <div className="editor-empty">
-            左の DOM ツリーから要素を選択してください
+            {t("Select an element from the DOM tree on the left")}
           </div>
         ) : props.activeTab === "css" ? (
           <CssEditor
@@ -4947,14 +4980,26 @@ function CssBareEditor(props: {
 function ContentEditor(props: {
   value: string;
   onChange: (v: string) => void;
+  autoFocus?: boolean;
 }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  // Focus on mount and place the caret at the end, so the user can type
+  // immediately (e.g. opening the element editor via Ctrl+T).
+  useEffect(() => {
+    if (props.autoFocus && ref.current) {
+      const ta = ref.current;
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }
+  }, [props.autoFocus]);
   return (
     <div className="content-editor">
       <textarea
+        ref={ref}
         className="content-textarea"
         spellCheck={false}
         value={props.value}
-        placeholder={"タグ内に表示するテキスト..."}
+        placeholder={t("Text shown inside this tag...")}
         onChange={(e) => props.onChange(e.target.value)}
       />
     </div>
@@ -5045,7 +5090,7 @@ function ElementEditModal(props: {
     props.update("attributes", next);
   }
   function addAttr() {
-    const k = window.prompt("属性名 (例: href, alt, data-x)");
+    const k = window.prompt(t("Attribute name (e.g. href, alt, data-x)"));
     if (!k) return;
     setAttr(k.trim(), "");
   }
@@ -5058,7 +5103,7 @@ function ElementEditModal(props: {
       >
         <div className="modal-head">
           <span>
-            要素を編集 — 行 {props.lineNumber}
+            {t("Edit element — line")} {props.lineNumber}
             <code className="elem-tag">&lt;{props.tag || "?"}&gt;</code>
             <span className="elem-id">id="{props.lineNumber}"</span>
           </span>
@@ -5067,9 +5112,11 @@ function ElementEditModal(props: {
         <div className="element-edit-body">
           {isImg ? (
             <div className="elem-section">
-              <div className="elem-section-title">画像を選択 (src)</div>
+              <div className="elem-section-title">{t("Select image (src)")}</div>
               {c.attributes.src && (
-                <div className="elem-current-src">現在: {c.attributes.src}</div>
+                <div className="elem-current-src">
+                  {t("Current:")} {c.attributes.src}
+                </div>
               )}
               <ImagesTab
                 folders={props.imageFolders}
@@ -5085,45 +5132,48 @@ function ElementEditModal(props: {
                 <input
                   value={c.attributes.alt ?? ""}
                   onChange={(e) => setAttr("alt", e.target.value)}
-                  placeholder="代替テキスト"
+                  placeholder={t("Alternative text")}
                 />
               </label>
             </div>
           ) : takesText ? (
             <div className="elem-section">
-              <div className="elem-section-title">テキスト (content)</div>
+              <div className="elem-section-title">{t("Text (content)")}</div>
               <ContentEditor
                 value={c.content ?? ""}
                 onChange={(v) => props.update("content", v || undefined)}
+                autoFocus
               />
             </div>
           ) : (
             <div className="elem-section elem-void-note">
-              &lt;{props.tag}&gt; は内容を持たない要素です。属性のみ編集できます。
+              {t(
+                "<{tag}> is a void element; it has no content. Edit attributes only."
+              ).replace("{tag}", props.tag)}
             </div>
           )}
 
           <div className="elem-section">
-            <div className="elem-section-title">属性</div>
+            <div className="elem-section-title">{t("Attributes")}</div>
             {Object.entries(c.attributes)
               .filter(([k]) => !(isImg && (k === "src" || k === "alt")))
               .map(([k, v]) => (
                 <div key={k} className="attr-row">
                   <span className="attr-key">{k}</span>
                   <input value={v} onChange={(e) => setAttr(k, e.target.value)} />
-                  <button onClick={() => delAttr(k)} title="削除">
+                  <button onClick={() => delAttr(k)} title={t("Delete")}>
                     ×
                   </button>
                 </div>
               ))}
             <button className="add-btn" onClick={addAttr}>
-              + 属性を追加
+              {t("+ Add attribute")}
             </button>
           </div>
         </div>
         <div className="element-edit-foot">
           <button className="primary" onClick={props.onClose}>
-            完了
+            {t("Done")}
           </button>
         </div>
       </div>
@@ -5153,8 +5203,9 @@ function HeadDefaultModal(props: {
         </div>
         <div className="head-modal-body">
           <p className="head-modal-help">
-            ほとんど変更しない既定の head 設定です。<code>htfl.yaml</code>{" "}
-            に保存され、ビルド時に <code>&lt;head&gt;</code> へ出力されます。
+            {t(
+              "Rarely-changed default head settings. Saved to htfl.yaml and emitted into <head> at build time."
+            )}
           </p>
           <label className="head-field">
             <span>&lt;html lang&gt;</span>
@@ -5176,7 +5227,7 @@ function HeadDefaultModal(props: {
           </label>
         </div>
         <div className="head-modal-foot">
-          <button onClick={props.onClose}>キャンセル</button>
+          <button onClick={props.onClose}>{t("Cancel")}</button>
           <button
             className="primary"
             onClick={() =>
@@ -5186,7 +5237,7 @@ function HeadDefaultModal(props: {
               )
             }
           >
-            保存
+            {t("Save")}
           </button>
         </div>
       </div>
@@ -5231,22 +5282,22 @@ function HeadProjectTagsModal(props: {
         </div>
         <div className="head-modal-body">
           <p className="head-modal-help">
-            このプロジェクト固有の head タグです。
+            {t("Head tags specific to this project.")}
           </p>
-          {field("title", "title", "ページタイトル")}
-          {field("description", "meta description", "ページの説明")}
+          {field("title", "title", t("Page title"))}
+          {field("description", "meta description", t("Page description"))}
           {field("theme_color", "theme-color", "#39b54a")}
-          <div className="head-group-label">OGP (SNS シェア)</div>
+          <div className="head-group-label">{t("OGP (social share)")}</div>
           {field("og_title", "og:title")}
           {field("og_description", "og:description")}
-          {field("og_image", "og:image", "https://... または /images/...")}
-          <div className="head-group-label">アイコン</div>
+          {field("og_image", "og:image", "https://... or /images/...")}
+          <div className="head-group-label">{t("Icon")}</div>
           {field("favicon", "favicon (link rel=icon)", "/favicon.ico")}
         </div>
         <div className="head-modal-foot">
-          <button onClick={props.onClose}>キャンセル</button>
+          <button onClick={props.onClose}>{t("Cancel")}</button>
           <button className="primary" onClick={() => props.onSave(f)}>
-            保存
+            {t("Save")}
           </button>
         </div>
       </div>
@@ -5499,6 +5550,8 @@ function SettingsModal(props: {
   cssResetOn: boolean;
   outputMode: "ssr" | "ssr+js";
   onSetOutputMode: (m: "ssr" | "ssr+js") => void;
+  locale: "en" | "ja";
+  onSetLocale: (l: "en" | "ja") => void;
   hasProject: boolean;
   browserPath: string | null;
   onToggleCssReset: () => void;
@@ -5514,23 +5567,42 @@ function SettingsModal(props: {
         className="modal settings-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="設定"
+        aria-label={t("Settings")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
-          <span>設定</span>
-          <button aria-label="閉じる" onClick={props.onClose}>
+          <span>{t("Settings")}</span>
+          <button aria-label={t("Close")} onClick={props.onClose}>
             ×
           </button>
         </div>
         <div className="settings-body">
           <section className="settings-row">
             <div className="settings-label">
-              <strong>出力モード</strong>
+              <strong>{t("Language")}</strong>
               <p>
-                SSR = 静的 HTML のみ (SCRIPT/JS を出力せず、JavaScript
-                無効でも表示)。SSR + JS = 対話用の JS も出力します
-                (プロジェクト単位)。
+                {t(
+                  "Choose the UI language. English is the default; 日本語 is a language pack."
+                )}
+              </p>
+            </div>
+            <button
+              className="settings-toggle"
+              onClick={() =>
+                props.onSetLocale(props.locale === "ja" ? "en" : "ja")
+              }
+            >
+              {props.locale === "ja" ? "日本語" : "English"}
+            </button>
+          </section>
+
+          <section className="settings-row">
+            <div className="settings-label">
+              <strong>{t("Output mode")}</strong>
+              <p>
+                {t(
+                  "SSR = static HTML only (no SCRIPT/JS — displays with JavaScript disabled). SSR + JS = also emits interactive JS (per project)."
+                )}
               </p>
             </div>
             <button
@@ -5542,16 +5614,19 @@ function SettingsModal(props: {
                 )
               }
             >
-              {props.outputMode === "ssr" ? "SSR (静的)" : "SSR + JS (動的)"}
+              {props.outputMode === "ssr"
+                ? t("SSR (static)")
+                : t("SSR + JS (dynamic)")}
             </button>
           </section>
 
           <section className="settings-row">
             <div className="settings-label">
-              <strong>CSS リセット</strong>
+              <strong>{t("CSS reset")}</strong>
               <p>
-                margin / padding / list-style 等のブラウザ既定を無効化します
-                (プロジェクト単位)。
+                {t(
+                  "Disable browser default margin / padding / list-style etc. (per project)."
+                )}
               </p>
             </div>
             <button
@@ -5559,39 +5634,38 @@ function SettingsModal(props: {
               disabled={!props.hasProject}
               onClick={props.onToggleCssReset}
             >
-              {props.cssResetOn ? "ON ✓" : "OFF (ブラウザ既定)"}
+              {props.cssResetOn ? t("ON ✓") : t("OFF (browser default)")}
             </button>
           </section>
 
           <section className="settings-row">
             <div className="settings-label">
-              <strong>プレビュー用ブラウザ</strong>
+              <strong>{t("Preview browser")}</strong>
               <p className="settings-path">
-                {props.browserPath ?? "(OS の既定ブラウザ)"}
+                {props.browserPath ?? t("(OS default browser)")}
               </p>
             </div>
             <div className="settings-actions">
-              <button onClick={props.onPickBrowser}>指定...</button>
+              <button onClick={props.onPickBrowser}>{t("Choose...")}</button>
               <button
                 disabled={!props.browserPath}
                 onClick={props.onClearBrowser}
               >
-                既定に戻す
+                {t("Reset to default")}
               </button>
             </div>
           </section>
 
           <section className="settings-row">
             <div className="settings-label">
-              <strong>プラグイン実行の許可</strong>
+              <strong>{t("Plugin execution permission")}</strong>
               <p>
-                プラグインは任意の JavaScript を実行します。許可状態をリセット
-                すると、次回実行時に再度確認します。
+                {t(
+                  "Plugins run arbitrary JavaScript. Resetting will ask for confirmation again on next run."
+                )}
               </p>
             </div>
-            <button onClick={props.onResetPluginConsent}>
-              許可をリセット
-            </button>
+            <button onClick={props.onResetPluginConsent}>{t("Reset")}</button>
           </section>
         </div>
       </div>
@@ -5658,30 +5732,58 @@ function AboutModal(props: { onClose: () => void }) {
         className="modal about-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Foling Editor について"
+        aria-label={t("About Foling")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
-          <span>Foling Editor について</span>
-          <button aria-label="閉じる" onClick={props.onClose}>
+          <span>{t("About Foling")}</span>
+          <button aria-label={t("Close")} onClick={props.onClose}>
             ×
           </button>
         </div>
         <div className="about-body">
-          <h2>Foling Editor</h2>
-          <p className="about-version">バージョン {APP_VERSION}</p>
+          <h2>Foling</h2>
+          <p className="about-version">
+            {t("Version")} {APP_VERSION}
+          </p>
           <p>
-            HTFL (HyperText Foldering Language) —
-            フォルダ構造で HTML を表現するための言語のデスクトップエディタ。
+            {t(
+              "A desktop editor for HTFL (HyperText Foldering Language)."
+            )}
           </p>
           <dl className="about-meta">
-            <dt>ライセンス</dt>
+            <dt>{t("License")}</dt>
             <dd>GPL-3.0-or-later</dd>
-            <dt>技術</dt>
+            <dt>{t("Built with")}</dt>
             <dd>Tauri 2 · React · TypeScript · Rust</dd>
           </dl>
           <p className="about-copyright">© 2026 大松雄斗</p>
           {REPO_URL && <p className="about-repo">{REPO_URL}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChangelogModal(props: { text: string; onClose: () => void }) {
+  useEscClose(props.onClose);
+  return (
+    <div className="modal-bg" onClick={props.onClose}>
+      <div
+        className="modal changelog-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("Changelog")}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <span>{t("Changelog")}</span>
+          <button aria-label={t("Close")} onClick={props.onClose}>
+            ×
+          </button>
+        </div>
+        <div className="changelog-body">
+          <pre>{props.text}</pre>
         </div>
       </div>
     </div>
