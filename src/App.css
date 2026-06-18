@@ -468,7 +468,14 @@ select {
 }
 
 .tree-row-input {
-  flex: 1;
+  /* Shrink-to-fit so the inline hints (badges / content preview) can sit
+     right next to the tag name. A spacer after the hints pushes the ✎ to
+     the right edge. */
+  flex: 0 1 auto;
+  /* Size to the tag name where supported (Chromium 123+ / WebView2),
+     otherwise a sensible fixed width. */
+  field-sizing: content;
+  width: 14ch;
   background: transparent;
   border: none;
   color: #f0f0f0;
@@ -476,10 +483,7 @@ select {
   font-size: inherit;
   padding: 0 6px;
   outline: none;
-  /* Keep the input reachable even when the row is heavily indented;
-     combined with the row's `width: max-content` this guarantees that
-     the textbox is always part of the horizontal scroll area. */
-  min-width: 200px;
+  min-width: 7ch;
 }
 
 .tree-row-input::placeholder {
@@ -2570,4 +2574,63 @@ button.secondary {
   font-size: 0.82rem;
   line-height: 1.55;
   color: #cdd6e4;
+}
+
+/* ── Tree row inline hints (badges / image / content preview) ─────── */
+.tree-row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+.tree-row-spacer {
+  flex: 1 1 8px;
+  min-width: 8px;
+}
+.tree-badge {
+  flex: 0 0 auto;
+  font-size: 10px;
+  line-height: 1.6;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #15233a;
+  color: #7fb3e0;
+  border: 1px solid #2c3f57;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+}
+.tree-badge.is-hidden {
+  background: #2a1a1a;
+  color: #e0a0a0;
+  border-color: #5a3030;
+}
+.tree-img-mark {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: #9aa4b2;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+}
+.tree-content-preview {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  font-style: italic;
+  color: #6f7787;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+  font-family: var(--font-ui);
+}
+.tree-row.selected .tree-badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-color: transparent;
+}
+.tree-row.selected .tree-img-mark,
+.tree-row.selected .tree-content-preview {
+  color: rgba(255, 255, 255, 0.85);
 }

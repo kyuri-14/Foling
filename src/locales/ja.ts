@@ -157,6 +157,10 @@ export const ja: LocaleDict = {
   "Edit the selected element's CSS": "選択要素の CSS を編集",
   "Go to the CLASSES tab": "CLASSES タブへ移動",
   "Edit the selected element's SCRIPT": "選択要素の SCRIPT を編集",
+  "Move the selection up / down a row": "選択行を上 / 下へ切替",
+  "Tree: reorder the selected row": "ツリー: 選択行を並べ替え",
+  "Tree: outdent / indent": "ツリー: インデント解除 / 追加",
+  Text: "テキスト",
   "Tree: add a child element": "ツリー: 子要素を追加",
   "Tree: add a sibling / outdent an empty row":
     "ツリー: 同階層に追加 / 空行ならインデント解除",

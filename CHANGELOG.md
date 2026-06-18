@@ -10,10 +10,17 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Editor shortcuts for the selected element (web-safe — no Ctrl/Cmd, no
   Alt+digit): **Alt+S** edit CSS, **Alt+C** go to CLASSES, **Alt+J** edit
   SCRIPT (switches the tab and focuses the editor).
+- Inline tree-row hints next to each tag: key CSS badges (flex / grid /
+  absolute / hidden / …), an image marker (🖼 filename), and a greyed content
+  preview. The ✎ button's tooltip now shows the element's text.
+- **Alt+↑ / Alt+↓** move the selection up / down a row.
 
 ### Changed
 - Menu bar now follows the common desktop pattern: once a top-level menu is
   open, hovering another top item (e.g. VIEW → WINDOW) switches to it.
+- Element-editor toggle moved from Ctrl+T to **Alt+T** (consistent with the
+  Alt shortcuts and web-safe). Row reorder is now **Alt+Shift+↑/↓**; indent /
+  outdent is **Alt+←/→**.
 
 ## [0.10.0] - 2026-06
 

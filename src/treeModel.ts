@@ -11,6 +11,59 @@ export interface FlatRow {
   /** Absolute path on disk, when this row was synced from the actual tree. */
   actualPath?: string;
   collapsed: boolean;
+  /** Inline hints derived from the element's config (shown next to the tag). */
+  content?: string; // text content, if any
+  imageLabel?: string; // image filename (img src) or "bg-image"
+  badges?: string[]; // key CSS hints: flex / grid / absolute / hidden / ...
+}
+
+export interface RowMeta {
+  content?: string;
+  imageLabel?: string;
+  badges: string[];
+}
+
+// Derive the inline tree-row hints (content preview, image marker, key CSS
+// badges) from an element's tag + config. Pure so it stays unit-testable.
+export function rowMetaFromConfig(
+  tag: string,
+  config: {
+    css?: string;
+    content?: string;
+    attributes?: Record<string, string>;
+  }
+): RowMeta {
+  const css = config.css ?? "";
+  const attrs = config.attributes ?? {};
+  const badges: string[] = [];
+
+  const disp = /(?:^|[;{\s])display\s*:\s*([a-z-]+)/i.exec(css);
+  if (disp) {
+    const map: Record<string, string> = {
+      flex: "flex",
+      "inline-flex": "inline-flex",
+      grid: "grid",
+      "inline-grid": "inline-grid",
+      none: "hidden",
+      "inline-block": "inline-block",
+      inline: "inline",
+    };
+    const v = map[disp[1].toLowerCase()];
+    if (v) badges.push(v);
+  }
+  if (badges.includes("flex") || badges.includes("inline-flex")) {
+    const fd = /flex-direction\s*:\s*(column|row)/i.exec(css);
+    if (fd) badges.push(fd[1].toLowerCase() === "column" ? "col" : "row");
+  }
+  const pos = /(?:^|[;{\s])position\s*:\s*(absolute|fixed|sticky)/i.exec(css);
+  if (pos) badges.push(pos[1].toLowerCase());
+
+  let imageLabel: string | undefined;
+  if (tag === "img" && attrs.src) imageLabel = basenameOf(attrs.src);
+  else if (/background-image\s*:\s*url\(/i.test(css)) imageLabel = "bg-image";
+
+  const content = config.content?.trim() || undefined;
+  return { content, imageLabel, badges };
 }
 
 export interface ParsedNode {

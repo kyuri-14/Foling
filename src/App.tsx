@@ -43,6 +43,7 @@ import {
   getVisibleRows,
   lineNumPad,
   nnOf,
+  rowMetaFromConfig,
   rowsToParsedTree,
 } from "./treeModel";
 import {
@@ -458,12 +459,16 @@ function syncRowsFromTree(
   const out: FlatRow[] = [];
   function walk(n: TreeNode, depth: number) {
     const old = oldByPath.get(n.path);
+    const meta = rowMetaFromConfig(n.display_name || n.name, n.config ?? {});
     out.push({
       id: pathToId?.get(n.path) ?? old?.id ?? n.path,
       depth,
       name: n.display_name || n.name,
       actualPath: n.path,
       collapsed: old?.collapsed ?? false,
+      content: meta.content,
+      imageLabel: meta.imageLabel,
+      badges: meta.badges,
     });
     for (const c of n.children) walk(c, depth + 1);
   }
@@ -1455,21 +1460,6 @@ export default function App() {
         runUndo();
       }
 
-      // Ctrl+T — toggle the element editor (text / image) for the selected
-      // element. Press again to close (= finish text input).
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "t") {
-        e.preventDefault();
-        if (elementEdit) {
-          setElementEdit(null);
-          return;
-        }
-        if (!selectedPath) return;
-        const idx = rows.findIndex((r) => r.actualPath === selectedPath);
-        if (idx < 0) return;
-        openElementEditor(rows[idx], idx + 1);
-        return;
-      }
-
       // Shift+Delete — delete the selected element (and its whole subtree).
       // Leaves native cut/delete intact when typing in a real text field.
       if (e.shiftKey && e.key === "Delete") {
@@ -1493,6 +1483,18 @@ export default function App() {
           window.setTimeout(() => {
             document.querySelector<HTMLTextAreaElement>(sel)?.focus();
           }, 0);
+        if (k === "t") {
+          // Toggle the element editor (text / image). Press again to close.
+          e.preventDefault();
+          if (elementEdit) {
+            setElementEdit(null);
+            return;
+          }
+          if (!selectedPath) return;
+          const idx = rows.findIndex((r) => r.actualPath === selectedPath);
+          if (idx >= 0) openElementEditor(rows[idx], idx + 1);
+          return;
+        }
         if (k === "s") {
           e.preventDefault();
           setActiveTab("css");
@@ -1513,26 +1515,28 @@ export default function App() {
         }
       }
 
-      // Alt + arrow keys — move the selected row.
-      // Only fires when focus is in a tree-row-input, so users keep native
-      // word-navigation in other inputs / textareas.
+      // Alt + arrow keys (only while a tree-row input is focused, so other
+      // inputs keep native word-navigation):
+      //   Alt+↑ / Alt+↓          → move the selection up / down a row
+      //   Alt+Shift+↑ / Shift+↓  → reorder (move the row itself)
+      //   Alt+← / Alt+→          → outdent / indent
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         const target = e.target as HTMLElement | null;
         if (!target?.classList?.contains("tree-row-input")) return;
         if (!selectedPath) return;
+        if (!e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+          e.preventDefault();
+          navigateSelection(e.key === "ArrowUp" ? -1 : 1);
+          return;
+        }
+        const idx = rows.findIndex((r) => r.actualPath === selectedPath);
         let mutated: FlatRow[] | null = null;
-        if (e.key === "ArrowUp") {
-          const idx = rows.findIndex((r) => r.actualPath === selectedPath);
-          if (idx >= 0) mutated = moveRowUp(rows, idx);
-        } else if (e.key === "ArrowDown") {
-          const idx = rows.findIndex((r) => r.actualPath === selectedPath);
-          if (idx >= 0) mutated = moveRowDown(rows, idx);
-        } else if (e.key === "ArrowLeft") {
-          const idx = rows.findIndex((r) => r.actualPath === selectedPath);
-          if (idx >= 0) mutated = outdentRowInList(rows, idx);
-        } else if (e.key === "ArrowRight") {
-          const idx = rows.findIndex((r) => r.actualPath === selectedPath);
-          if (idx >= 0) mutated = indentRowInList(rows, idx);
+        if (idx >= 0) {
+          if (e.shiftKey && e.key === "ArrowUp") mutated = moveRowUp(rows, idx);
+          else if (e.shiftKey && e.key === "ArrowDown")
+            mutated = moveRowDown(rows, idx);
+          else if (e.key === "ArrowLeft") mutated = outdentRowInList(rows, idx);
+          else if (e.key === "ArrowRight") mutated = indentRowInList(rows, idx);
         }
         if (mutated) {
           e.preventDefault();
@@ -1884,6 +1888,20 @@ export default function App() {
       setHighlightSourcePath(null);
     }
     setElementEdit({ lineNumber });
+  }
+
+  // Move the selection up / down to the adjacent *visible* saved row, and put
+  // the cursor on it. Used by Alt+↑ / Alt+↓.
+  function navigateSelection(delta: 1 | -1) {
+    const order = getVisibleRows(rows).filter((v) => v.row.actualPath);
+    if (order.length === 0) return;
+    const cur = order.findIndex((v) => v.row.actualPath === selectedPath);
+    const next = cur < 0 ? (delta > 0 ? 0 : order.length - 1) : cur + delta;
+    if (next < 0 || next >= order.length) return;
+    const path = order[next].row.actualPath!;
+    setSelectedPath(path);
+    setHighlightSourcePath(null);
+    setTreeFocusPath(path);
   }
 
   // Apply current rows to the disk tree (rename / create / delete).
@@ -3884,10 +3902,37 @@ function TreeRowComponent(props: {
           ⚠ div
         </span>
       )}
+      {(props.row.badges?.length ||
+        props.row.imageLabel ||
+        props.row.content) && (
+        <span className="tree-row-meta">
+          {props.row.badges?.map((b) => (
+            <span
+              key={b}
+              className={`tree-badge${b === "hidden" ? " is-hidden" : ""}`}
+            >
+              {b}
+            </span>
+          ))}
+          {props.row.imageLabel && (
+            <span className="tree-img-mark" title={props.row.imageLabel}>
+              🖼 {props.row.imageLabel}
+            </span>
+          )}
+          {props.row.content && (
+            <span className="tree-content-preview">{props.row.content}</span>
+          )}
+        </span>
+      )}
+      <span className="tree-row-spacer" />
       <button
         type="button"
         className="tree-edit-btn"
-        title={t("Edit content (text / image / attributes)")}
+        title={
+          props.row.content
+            ? `${t("Text")}: ${props.row.content.slice(0, 100)}`
+            : t("Edit content (text / image / attributes)")
+        }
         onClick={(e) => {
           e.stopPropagation();
           props.onEdit();
@@ -5734,17 +5779,19 @@ const SHORTCUTS: { keys: string; desc: string }[] = [
   { keys: "Ctrl+Z", desc: "Undo" },
   { keys: "Ctrl+Y / Ctrl+Shift+Z", desc: "Redo" },
   { keys: "Ctrl+Shift+F", desc: "Search in project" },
-  { keys: "Ctrl+T", desc: "Toggle the element editor (text / image)" },
+  { keys: "Alt+T", desc: "Toggle the element editor (text / image)" },
   { keys: "Shift+Delete", desc: "Delete the selected element and its subtree" },
   { keys: "Alt+S", desc: "Edit the selected element's CSS" },
   { keys: "Alt+C", desc: "Go to the CLASSES tab" },
   { keys: "Alt+J", desc: "Edit the selected element's SCRIPT" },
+  { keys: "Alt+↑ / ↓", desc: "Move the selection up / down a row" },
   { keys: "Enter", desc: "Tree: add a child element" },
   { keys: "Shift+Enter", desc: "Tree: add a sibling / outdent an empty row" },
   { keys: "Tab / Shift+Tab", desc: "Tree: indent / outdent" },
   { keys: "Backspace (empty row)", desc: "Tree: outdent / delete the row" },
   { keys: "↑ / ↓", desc: "Tree: move between rows" },
-  { keys: "Alt+↑ / ↓ / ← / →", desc: "Tree: move the selected row / change depth" },
+  { keys: "Alt+Shift+↑ / ↓", desc: "Tree: reorder the selected row" },
+  { keys: "Alt+← / →", desc: "Tree: outdent / indent" },
   { keys: "Ctrl+C / Ctrl+V", desc: "Tree: copy / paste an element with its subtree" },
   { keys: "Esc", desc: "Close dialog / autocomplete" },
 ];
