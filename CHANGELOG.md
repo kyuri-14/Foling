@@ -6,6 +6,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Menu bar now follows the common desktop pattern: once a top-level menu is
+  open, hovering another top item (e.g. VIEW → WINDOW) switches to it.
+
 ## [0.10.0] - 2026-06
 
 ### Added

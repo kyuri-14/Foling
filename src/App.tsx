@@ -3036,7 +3036,9 @@ function MenuBar(props: {
       <MenuItem
         label={t("FILE")}
         open={props.menu === "file"}
+        anyOpen={props.menu !== null}
         onOpen={() => props.setMenu(props.menu === "file" ? null : "file")}
+        onHover={() => props.setMenu("file")}
       >
         <MenuOption onClick={props.onNew}>{t("New Project...")}</MenuOption>
         <MenuOption onClick={props.onOpen}>{t("Open Project...")}</MenuOption>
@@ -3068,7 +3070,9 @@ function MenuBar(props: {
       <MenuItem
         label={t("EDIT")}
         open={props.menu === "edit"}
+        anyOpen={props.menu !== null}
         onOpen={() => props.setMenu(props.menu === "edit" ? null : "edit")}
+        onHover={() => props.setMenu("edit")}
       >
         <MenuOption onClick={props.onUndo} disabled={!props.canUndo}>
           {t("Undo (Ctrl+Z)")}
@@ -3093,7 +3097,9 @@ function MenuBar(props: {
       <MenuItem
         label={t("VIEW")}
         open={props.menu === "view"}
+        anyOpen={props.menu !== null}
         onOpen={() => props.setMenu(props.menu === "view" ? null : "view")}
+        onHover={() => props.setMenu("view")}
       >
         <MenuOption onClick={props.onOpenClasses} disabled={!props.hasProject}>
           {t("Edit class files...")}
@@ -3115,7 +3121,9 @@ function MenuBar(props: {
       <MenuItem
         label={t("WINDOW")}
         open={props.menu === "window"}
+        anyOpen={props.menu !== null}
         onOpen={() => props.setMenu(props.menu === "window" ? null : "window")}
+        onHover={() => props.setMenu("window")}
       >
         <MenuOption onClick={props.onReload}>{t("Reload")}</MenuOption>
         <MenuOption onClick={props.onPickBrowser}>
@@ -3136,9 +3144,11 @@ function MenuBar(props: {
       <MenuItem
         label={t("PLUGINS")}
         open={props.menu === "plugins"}
+        anyOpen={props.menu !== null}
         onOpen={() =>
           props.setMenu(props.menu === "plugins" ? null : "plugins")
         }
+        onHover={() => props.setMenu("plugins")}
       >
         <MenuOption onClick={props.onOpenPlugins} disabled={!props.hasProject}>
           {t("Manage plugins...")} ({props.plugins.length})
@@ -3160,7 +3170,9 @@ function MenuBar(props: {
       <MenuItem
         label={t("HELP")}
         open={props.menu === "help"}
+        anyOpen={props.menu !== null}
         onOpen={() => props.setMenu(props.menu === "help" ? null : "help")}
+        onHover={() => props.setMenu("help")}
       >
         <MenuOption onClick={props.onOpenShortcuts}>
           {t("Keyboard shortcuts...")}
@@ -3177,7 +3189,11 @@ function MenuBar(props: {
 function MenuItem(props: {
   label: string;
   open: boolean;
+  /** True when *some* top-level menu is currently open. */
+  anyOpen: boolean;
   onOpen: () => void;
+  /** Switch to this menu (used for hover-to-open once a menu is open). */
+  onHover: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -3186,6 +3202,10 @@ function MenuItem(props: {
       onClick={(e) => {
         e.stopPropagation();
         props.onOpen();
+      }}
+      // VSCode-style: once a menu is open, hovering another top item opens it.
+      onMouseEnter={() => {
+        if (props.anyOpen && !props.open) props.onHover();
       }}
     >
       <span>{props.label}</span>
