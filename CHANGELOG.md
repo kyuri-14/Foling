@@ -6,6 +6,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Editor shortcuts for the selected element (web-safe — no Ctrl/Cmd, no
+  Alt+digit): **Alt+S** edit CSS, **Alt+C** go to CLASSES, **Alt+J** edit
+  SCRIPT (switches the tab and focuses the editor).
+
 ### Changed
 - Menu bar now follows the common desktop pattern: once a top-level menu is
   open, hovering another top item (e.g. VIEW → WINDOW) switches to it.

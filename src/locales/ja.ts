@@ -154,6 +154,9 @@ export const ja: LocaleDict = {
     "要素エディタの表示切替 (テキスト / 画像)",
   "Delete the selected element and its subtree":
     "選択要素とその中身を削除",
+  "Edit the selected element's CSS": "選択要素の CSS を編集",
+  "Go to the CLASSES tab": "CLASSES タブへ移動",
+  "Edit the selected element's SCRIPT": "選択要素の SCRIPT を編集",
   "Tree: add a child element": "ツリー: 子要素を追加",
   "Tree: add a sibling / outdent an empty row":
     "ツリー: 同階層に追加 / 空行ならインデント解除",

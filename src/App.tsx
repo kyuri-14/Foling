@@ -1483,6 +1483,36 @@ export default function App() {
         return;
       }
 
+      // Alt+S / Alt+C / Alt+J — jump to the CSS / CLASSES / SCRIPT editor for
+      // the selected element and focus it for immediate typing. Deliberately
+      // avoids Ctrl/Cmd and Alt+digit so it won't clash with browser shortcuts
+      // (tabs, address bar, etc.) in the planned web build.
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        const k = e.key.toLowerCase();
+        const focusSoon = (sel: string) =>
+          window.setTimeout(() => {
+            document.querySelector<HTMLTextAreaElement>(sel)?.focus();
+          }, 0);
+        if (k === "s") {
+          e.preventDefault();
+          setActiveTab("css");
+          focusSoon(".editor-area .css-textarea");
+          return;
+        }
+        if (k === "c") {
+          e.preventDefault();
+          setActiveTab("classes");
+          focusSoon(".editor-area .css-textarea");
+          return;
+        }
+        if (k === "j") {
+          e.preventDefault();
+          setActiveTab("js");
+          focusSoon(".editor-area .js-fullpane-textarea");
+          return;
+        }
+      }
+
       // Alt + arrow keys — move the selected row.
       // Only fires when focus is in a tree-row-input, so users keep native
       // word-navigation in other inputs / textareas.
@@ -5706,6 +5736,9 @@ const SHORTCUTS: { keys: string; desc: string }[] = [
   { keys: "Ctrl+Shift+F", desc: "Search in project" },
   { keys: "Ctrl+T", desc: "Toggle the element editor (text / image)" },
   { keys: "Shift+Delete", desc: "Delete the selected element and its subtree" },
+  { keys: "Alt+S", desc: "Edit the selected element's CSS" },
+  { keys: "Alt+C", desc: "Go to the CLASSES tab" },
+  { keys: "Alt+J", desc: "Edit the selected element's SCRIPT" },
   { keys: "Enter", desc: "Tree: add a child element" },
   { keys: "Shift+Enter", desc: "Tree: add a sibling / outdent an empty row" },
   { keys: "Tab / Shift+Tab", desc: "Tree: indent / outdent" },
