@@ -14,6 +14,10 @@ versions follow [Semantic Versioning](https://semver.org/).
   absolute / hidden / …), an image marker (🖼 filename), and a greyed content
   preview. The ✎ button's tooltip now shows the element's text.
 - **Alt+↑ / Alt+↓** move the selection up / down a row.
+- **Alt+R** runs the preview (RUN); **Alt+Shift+R** runs the DEV preview.
+- **Alt+←** selects the parent element — or, from the CSS / SCRIPT editor,
+  jumps back to that element's tree row. **Alt+→** selects the next sibling
+  (wraps around).
 
 ### Changed
 - Menu bar now follows the common desktop pattern: once a top-level menu is

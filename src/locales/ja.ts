@@ -158,6 +158,11 @@ export const ja: LocaleDict = {
   "Go to the CLASSES tab": "CLASSES タブへ移動",
   "Edit the selected element's SCRIPT": "選択要素の SCRIPT を編集",
   "Move the selection up / down a row": "選択行を上 / 下へ切替",
+  "Select the parent (from the editor: jump to the tag)":
+    "親要素を選択 (エディタからはタグ行へ移動)",
+  "Select the next sibling (wraps)": "次の兄弟要素を選択 (ループ)",
+  "RUN (open preview)": "RUN (プレビューを開く)",
+  "DEV (click-to-edit preview)": "DEV (クリック編集プレビュー)",
   "Tree: reorder the selected row": "ツリー: 選択行を並べ替え",
   "Tree: outdent / indent": "ツリー: インデント解除 / 追加",
   Text: "テキスト",

@@ -1513,28 +1513,78 @@ export default function App() {
           focusSoon(".editor-area .js-fullpane-textarea");
           return;
         }
+        if (k === "r") {
+          // RUN — open the normal preview in the browser.
+          e.preventDefault();
+          runBuild();
+          return;
+        }
       }
 
-      // Alt + arrow keys (only while a tree-row input is focused, so other
-      // inputs keep native word-navigation):
-      //   Alt+↑ / Alt+↓          → move the selection up / down a row
-      //   Alt+Shift+↑ / Shift+↓  → reorder (move the row itself)
-      //   Alt+← / Alt+→          → outdent / indent
+      // Alt+Shift+R — DEV preview (click-to-edit).
+      if (
+        e.altKey &&
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        e.key.toLowerCase() === "r"
+      ) {
+        e.preventDefault();
+        runDev();
+        return;
+      }
+
+      // Alt + arrows. From the tree:
+      //   Alt+↑ / Alt+↓   → move the selection up / down a row
+      //   Alt+←           → select the parent element
+      //   Alt+→           → select the next sibling (wraps around)
+      //   Alt+Shift+↑/↓   → reorder the row; Alt+Shift+←/→ → outdent / indent
+      // From the CSS / SCRIPT editor:
+      //   Alt+←           → jump back to the element's tree row
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         const target = e.target as HTMLElement | null;
-        if (!target?.classList?.contains("tree-row-input")) return;
-        if (!selectedPath) return;
-        if (!e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-          e.preventDefault();
-          navigateSelection(e.key === "ArrowUp" ? -1 : 1);
+        const isTreeInput = !!target?.classList?.contains("tree-row-input");
+        const inEditor =
+          !!target?.classList?.contains("css-textarea") ||
+          !!target?.classList?.contains("js-fullpane-textarea");
+
+        if (inEditor && !e.shiftKey && e.key === "ArrowLeft") {
+          if (selectedPath) {
+            e.preventDefault();
+            setTreeFocusPath(selectedPath);
+          }
           return;
+        }
+        if (!isTreeInput) return;
+        if (!selectedPath) return;
+
+        if (!e.shiftKey) {
+          if (e.key === "ArrowUp") {
+            e.preventDefault();
+            navigateSelection(-1);
+            return;
+          }
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            navigateSelection(1);
+            return;
+          }
+          if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            navigateToParent();
+            return;
+          }
+          if (e.key === "ArrowRight") {
+            e.preventDefault();
+            navigateToNextSibling();
+            return;
+          }
         }
         const idx = rows.findIndex((r) => r.actualPath === selectedPath);
         let mutated: FlatRow[] | null = null;
-        if (idx >= 0) {
-          if (e.shiftKey && e.key === "ArrowUp") mutated = moveRowUp(rows, idx);
-          else if (e.shiftKey && e.key === "ArrowDown")
-            mutated = moveRowDown(rows, idx);
+        if (idx >= 0 && e.shiftKey) {
+          if (e.key === "ArrowUp") mutated = moveRowUp(rows, idx);
+          else if (e.key === "ArrowDown") mutated = moveRowDown(rows, idx);
           else if (e.key === "ArrowLeft") mutated = outdentRowInList(rows, idx);
           else if (e.key === "ArrowRight") mutated = indentRowInList(rows, idx);
         }
@@ -1902,6 +1952,30 @@ export default function App() {
     setSelectedPath(path);
     setHighlightSourcePath(null);
     setTreeFocusPath(path);
+  }
+
+  // Alt+← (in the tree): select the parent element. Stops at <body> (the
+  // <html> root isn't editable in the tree).
+  function navigateToParent() {
+    if (!tree || !selectedPath) return;
+    const parent = parentNode(tree, selectedPath);
+    if (!parent || parent.path === tree.path) return;
+    setSelectedPath(parent.path);
+    setHighlightSourcePath(null);
+    setTreeFocusPath(parent.path);
+  }
+
+  // Alt+→ (in the tree): select the next sibling, wrapping around.
+  function navigateToNextSibling() {
+    if (!tree || !selectedPath) return;
+    const parent = parentNode(tree, selectedPath);
+    if (!parent || parent.children.length === 0) return;
+    const i = parent.children.findIndex((c) => c.path === selectedPath);
+    if (i < 0) return;
+    const next = parent.children[(i + 1) % parent.children.length];
+    setSelectedPath(next.path);
+    setHighlightSourcePath(null);
+    setTreeFocusPath(next.path);
   }
 
   // Apply current rows to the disk tree (rename / create / delete).
@@ -5784,14 +5858,18 @@ const SHORTCUTS: { keys: string; desc: string }[] = [
   { keys: "Alt+S", desc: "Edit the selected element's CSS" },
   { keys: "Alt+C", desc: "Go to the CLASSES tab" },
   { keys: "Alt+J", desc: "Edit the selected element's SCRIPT" },
+  { keys: "Alt+R", desc: "RUN (open preview)" },
+  { keys: "Alt+Shift+R", desc: "DEV (click-to-edit preview)" },
   { keys: "Alt+↑ / ↓", desc: "Move the selection up / down a row" },
+  { keys: "Alt+←", desc: "Select the parent (from the editor: jump to the tag)" },
+  { keys: "Alt+→", desc: "Select the next sibling (wraps)" },
   { keys: "Enter", desc: "Tree: add a child element" },
   { keys: "Shift+Enter", desc: "Tree: add a sibling / outdent an empty row" },
   { keys: "Tab / Shift+Tab", desc: "Tree: indent / outdent" },
   { keys: "Backspace (empty row)", desc: "Tree: outdent / delete the row" },
   { keys: "↑ / ↓", desc: "Tree: move between rows" },
   { keys: "Alt+Shift+↑ / ↓", desc: "Tree: reorder the selected row" },
-  { keys: "Alt+← / →", desc: "Tree: outdent / indent" },
+  { keys: "Alt+Shift+← / →", desc: "Tree: outdent / indent" },
   { keys: "Ctrl+C / Ctrl+V", desc: "Tree: copy / paste an element with its subtree" },
   { keys: "Esc", desc: "Close dialog / autocomplete" },
 ];
