@@ -2634,3 +2634,147 @@ button.secondary {
 .tree-row.selected .tree-content-preview {
   color: rgba(255, 255, 255, 0.85);
 }
+
+/* ── Code editor theme + syntax highlight overlay ─────────────────── */
+:root {
+  --editor-bg: #1e1e28;
+  --editor-fg: #d4d4d4;
+  --editor-gutter: #6a6a78;
+  --editor-sel: rgba(120, 160, 255, 0.30);
+  --editor-font-size: 14px;
+  --syn-plain: #d4d4d4;
+  --syn-comment: #6a9955;
+  --syn-string: #ce9178;
+  --syn-number: #b5cea8;
+  --syn-keyword: #569cd6;
+  --syn-literal: #569cd6;
+  --syn-prop: #9cdcfe;
+  --syn-value: #ce9178;
+  --syn-selector: #d7ba7d;
+  --syn-color: #4ec9b0;
+  --syn-var: #4fc1ff;
+  --syn-func: #dcdcaa;
+  --syn-punct: #d4d4d4;
+}
+:root[data-editor-theme="light"] {
+  --editor-bg: #ffffff;
+  --editor-fg: #1f1f1f;
+  --editor-gutter: #b0b3b8;
+  --editor-sel: rgba(50, 110, 220, 0.20);
+  --syn-plain: #1f1f1f;
+  --syn-comment: #008000;
+  --syn-string: #a31515;
+  --syn-number: #098658;
+  --syn-keyword: #0000ff;
+  --syn-literal: #0000ff;
+  --syn-prop: #0451a5;
+  --syn-value: #a31515;
+  --syn-selector: #800000;
+  --syn-color: #267f99;
+  --syn-var: #0070c1;
+  --syn-func: #795e26;
+  --syn-punct: #1f1f1f;
+}
+:root[data-editor-theme="monokai"] {
+  --editor-bg: #272822;
+  --editor-fg: #f8f8f2;
+  --editor-gutter: #75715e;
+  --editor-sel: rgba(120, 120, 110, 0.40);
+  --syn-plain: #f8f8f2;
+  --syn-comment: #75715e;
+  --syn-string: #e6db74;
+  --syn-number: #ae81ff;
+  --syn-keyword: #f92672;
+  --syn-literal: #ae81ff;
+  --syn-prop: #a6e22e;
+  --syn-value: #fd971f;
+  --syn-selector: #a6e22e;
+  --syn-color: #66d9ef;
+  --syn-var: #66d9ef;
+  --syn-func: #a6e22e;
+  --syn-punct: #f8f8f2;
+}
+
+.code-stack {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+  background: var(--editor-bg);
+  font-family: var(--font-mono);
+  font-size: var(--editor-font-size);
+  line-height: 1.6;
+  tab-size: 2;
+}
+.code-overlay {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 10px 12px;
+  font: inherit;
+  line-height: inherit;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  color: var(--syn-plain);
+  background: var(--editor-bg);
+  pointer-events: none;
+  scrollbar-width: none;
+}
+.code-overlay::-webkit-scrollbar { display: none; }
+.code-overlay code { font: inherit; background: transparent; }
+.code-input {
+  position: relative;
+  flex: 1;
+  margin: 0;
+  padding: 10px 12px !important;
+  font: inherit;
+  line-height: inherit !important;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--editor-fg);
+}
+.code-input::selection { background: var(--editor-sel); }
+
+.syn-comment { color: var(--syn-comment); font-style: italic; }
+.syn-string { color: var(--syn-string); }
+.syn-number { color: var(--syn-number); }
+.syn-keyword { color: var(--syn-keyword); }
+.syn-literal { color: var(--syn-literal); }
+.syn-prop { color: var(--syn-prop); }
+.syn-value { color: var(--syn-value); }
+.syn-selector { color: var(--syn-selector); }
+.syn-color { color: var(--syn-color); }
+.syn-var { color: var(--syn-var); }
+.syn-func { color: var(--syn-func); }
+.syn-punct { color: var(--syn-punct); }
+
+/* Editor containers + gutters follow the theme */
+.css-editor,
+.css-bare-editor,
+.js-fullpane { background: var(--editor-bg); }
+.css-gutter,
+.js-fullpane-gutter {
+  background: var(--editor-bg);
+  color: var(--editor-gutter);
+  font-size: var(--editor-font-size);
+  border-right-color: rgba(127, 127, 127, 0.22);
+}
+
+.settings-select {
+  background: #1a1f29;
+  color: #e8edf2;
+  border: 1px solid #2a3340;
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+  min-width: 120px;
+}

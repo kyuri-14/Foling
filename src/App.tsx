@@ -46,6 +46,7 @@ import {
   rowMetaFromConfig,
   rowsToParsedTree,
 } from "./treeModel";
+import { highlight } from "./syntax";
 import {
   ClassFile,
   ExporterDef,
@@ -67,6 +68,8 @@ const LAST_PROJECT_KEY = "foling.lastProject";
 const BROWSER_KEY = "foling.previewBrowser";
 const PLUGIN_CONSENT_KEY = "foling.pluginConsent";
 const LOCALE_KEY = "foling.locale";
+const EDITOR_THEME_KEY = "foling.editorTheme";
+type EditorTheme = "dark" | "light" | "monokai";
 const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
 // Keep in sync with package.json / tauri.conf.json on release.
 const APP_VERSION = "0.10.0";
@@ -77,6 +80,11 @@ const REPO_URL = "";
 // already localized. English is the default (no pack).
 if (localStorage.getItem(LOCALE_KEY) === "ja") {
   setLocaleDict(ja);
+}
+// Apply the saved editor theme to <html data-editor-theme> on first paint.
+const _savedEditorTheme = localStorage.getItem(EDITOR_THEME_KEY);
+if (_savedEditorTheme) {
+  document.documentElement.setAttribute("data-editor-theme", _savedEditorTheme);
 }
 
 // Common CSS properties for autocomplete (alphabetical, not exhaustive).
@@ -1234,6 +1242,9 @@ export default function App() {
   const [showChangelog, setShowChangelog] = useState(false);
   const [locale, setLocale] = useState<"en" | "ja">(
     () => (localStorage.getItem(LOCALE_KEY) === "ja" ? "ja" : "en")
+  );
+  const [editorTheme, setEditorTheme] = useState<EditorTheme>(
+    () => (localStorage.getItem(EDITOR_THEME_KEY) as EditorTheme) || "dark"
   );
   const [showSearch, setShowSearch] = useState(false);
   // Close the top menu when the user clicks anywhere outside it.
@@ -2794,6 +2805,14 @@ export default function App() {
     setLocaleDict(next === "ja" ? ja : null);
   }
 
+  // Switch the code-editor color theme (background + syntax colors). Applied
+  // via <html data-editor-theme> so the CSS variables cascade.
+  function changeEditorTheme(next: EditorTheme) {
+    setEditorTheme(next);
+    localStorage.setItem(EDITOR_THEME_KEY, next);
+    document.documentElement.setAttribute("data-editor-theme", next);
+  }
+
   // Output mode: "ssr+js" (default, emits the SCRIPT/JS layer) ⇄ "ssr"
   // (static only — page works with JavaScript disabled).
   async function setOutputMode(mode: "ssr" | "ssr+js") {
@@ -3072,6 +3091,8 @@ export default function App() {
           onSetOutputMode={setOutputMode}
           locale={locale}
           onSetLocale={changeLocale}
+          editorTheme={editorTheme}
+          onSetEditorTheme={changeEditorTheme}
           hasProject={!!projectRoot}
           browserPath={browserPath}
           onToggleCssReset={toggleCssReset}
@@ -4325,6 +4346,7 @@ function CssEditor(props: {
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLPreElement>(null);
   const [acState, setAcState] = useState<ACState | null>(null);
   const [folded, setFolded] = useState<Set<CssSectionId>>(new Set());
   const lines = props.value.split("\n");
@@ -4736,25 +4758,38 @@ function CssEditor(props: {
               </div>
             ))}
           </div>
-          <textarea
-            ref={taRef}
-            className="css-textarea"
-            spellCheck={false}
-            value={props.value}
-            onFocus={() => props.onHighlightSource(null)}
-            onChange={onTextareaChange}
-            onKeyDown={onKeyDown}
-            onBlur={() => {
-              window.setTimeout(() => setAcState(null), 120);
-            }}
-            onScroll={(e) => {
-              if (gutterRef.current) {
-                gutterRef.current.scrollTop = (e.target as HTMLTextAreaElement)
-                  .scrollTop;
-              }
-              setAcState(null);
-            }}
-          />
+          <div className="code-stack">
+            <pre className="code-overlay" ref={overlayRef} aria-hidden="true">
+              <code
+                dangerouslySetInnerHTML={{
+                  __html: highlight(props.value, "css") + "\n",
+                }}
+              />
+            </pre>
+            <textarea
+              ref={taRef}
+              className="css-textarea code-input"
+              spellCheck={false}
+              value={props.value}
+              onFocus={() => props.onHighlightSource(null)}
+              onChange={onTextareaChange}
+              onKeyDown={onKeyDown}
+              onBlur={() => {
+                window.setTimeout(() => setAcState(null), 120);
+              }}
+              onScroll={(e) => {
+                const ta = e.currentTarget;
+                if (gutterRef.current) {
+                  gutterRef.current.scrollTop = ta.scrollTop;
+                }
+                if (overlayRef.current) {
+                  overlayRef.current.scrollTop = ta.scrollTop;
+                  overlayRef.current.scrollLeft = ta.scrollLeft;
+                }
+                setAcState(null);
+              }}
+            />
+          </div>
         </div>
       </CssSection>
 
@@ -4895,6 +4930,7 @@ function CssBareEditor(props: {
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLPreElement>(null);
   const [acState, setAcState] = useState<ACState | null>(null);
   const lines = props.value.split("\n");
   const lineCount = Math.max(lines.length, 8);
@@ -5095,24 +5131,37 @@ function CssBareEditor(props: {
             </div>
           ))}
         </div>
-        <textarea
-          ref={taRef}
-          className="css-textarea"
-          spellCheck={false}
-          value={props.value}
-          onChange={onTextareaChange}
-          onKeyDown={onKeyDown}
-          onBlur={() => {
-            window.setTimeout(() => setAcState(null), 120);
-          }}
-          onScroll={(e) => {
-            if (gutterRef.current) {
-              gutterRef.current.scrollTop = (e.target as HTMLTextAreaElement)
-                .scrollTop;
-            }
-            setAcState(null);
-          }}
-        />
+        <div className="code-stack">
+          <pre className="code-overlay" ref={overlayRef} aria-hidden="true">
+            <code
+              dangerouslySetInnerHTML={{
+                __html: highlight(props.value, "css") + "\n",
+              }}
+            />
+          </pre>
+          <textarea
+            ref={taRef}
+            className="css-textarea code-input"
+            spellCheck={false}
+            value={props.value}
+            onChange={onTextareaChange}
+            onKeyDown={onKeyDown}
+            onBlur={() => {
+              window.setTimeout(() => setAcState(null), 120);
+            }}
+            onScroll={(e) => {
+              const ta = e.currentTarget;
+              if (gutterRef.current) {
+                gutterRef.current.scrollTop = ta.scrollTop;
+              }
+              if (overlayRef.current) {
+                overlayRef.current.scrollTop = ta.scrollTop;
+                overlayRef.current.scrollLeft = ta.scrollLeft;
+              }
+              setAcState(null);
+            }}
+          />
+        </div>
       </div>
       {acState && (
         <div
@@ -5182,6 +5231,7 @@ function ContentEditor(props: {
 
 function JsEditor(props: { value: string; onChange: (v: string) => void }) {
   const gutterRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLPreElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const lines = props.value.split("\n");
   const lineCount = Math.max(lines.length, 8);
@@ -5210,23 +5260,36 @@ function JsEditor(props: { value: string; onChange: (v: string) => void }) {
           </div>
         ))}
       </div>
-      <textarea
-        ref={taRef}
-        className="js-fullpane-textarea"
-        spellCheck={false}
-        value={props.value}
-        placeholder={
-          "// el refers to this element\n// Example:\n// el.addEventListener('click', () => {\n//   el.textContent = 'clicked';\n// });"
-        }
-        onChange={(e) => props.onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onScroll={(e) => {
-          if (gutterRef.current) {
-            gutterRef.current.scrollTop = (e.target as HTMLTextAreaElement)
-              .scrollTop;
+      <div className="code-stack">
+        <pre className="code-overlay" ref={overlayRef} aria-hidden="true">
+          <code
+            dangerouslySetInnerHTML={{
+              __html: highlight(props.value, "js") + "\n",
+            }}
+          />
+        </pre>
+        <textarea
+          ref={taRef}
+          className="js-fullpane-textarea code-input"
+          spellCheck={false}
+          value={props.value}
+          placeholder={
+            "// el refers to this element\n// Example:\n// el.addEventListener('click', () => {\n//   el.textContent = 'clicked';\n// });"
           }
-        }}
-      />
+          onChange={(e) => props.onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onScroll={(e) => {
+            const ta = e.currentTarget;
+            if (gutterRef.current) {
+              gutterRef.current.scrollTop = ta.scrollTop;
+            }
+            if (overlayRef.current) {
+              overlayRef.current.scrollTop = ta.scrollTop;
+              overlayRef.current.scrollLeft = ta.scrollLeft;
+            }
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -5727,6 +5790,8 @@ function SettingsModal(props: {
   onSetOutputMode: (m: "ssr" | "ssr+js") => void;
   locale: "en" | "ja";
   onSetLocale: (l: "en" | "ja") => void;
+  editorTheme: EditorTheme;
+  onSetEditorTheme: (t: EditorTheme) => void;
   hasProject: boolean;
   browserPath: string | null;
   onToggleCssReset: () => void;
@@ -5769,6 +5834,24 @@ function SettingsModal(props: {
             >
               {props.locale === "ja" ? "日本語" : "English"}
             </button>
+          </section>
+
+          <section className="settings-row">
+            <div className="settings-label">
+              <strong>{t("Editor theme")}</strong>
+              <p>{t("Code editor background and syntax colors.")}</p>
+            </div>
+            <select
+              className="settings-select"
+              value={props.editorTheme}
+              onChange={(e) =>
+                props.onSetEditorTheme(e.target.value as EditorTheme)
+              }
+            >
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+              <option value="monokai">Monokai</option>
+            </select>
           </section>
 
           <section className="settings-row">

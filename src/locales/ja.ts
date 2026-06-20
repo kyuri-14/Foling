@@ -107,6 +107,9 @@ export const ja: LocaleDict = {
   Language: "言語",
   "Choose the UI language. English is the default; 日本語 is a language pack.":
     "UI の言語。English が既定、日本語は言語パックです。",
+  "Editor theme": "エディタテーマ",
+  "Code editor background and syntax colors.":
+    "コードエディタの背景とシンタックス(色分け)の配色。",
   Close: "閉じる",
 
   // About / Changelog

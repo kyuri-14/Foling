@@ -7,6 +7,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Syntax highlighting** in the CSS / SCRIPT / CLASS editors (lightweight
+  transparent-textarea overlay; tokens colored via CSS variables).
+- **Settings → Editor theme** (Dark / Light / Monokai) controlling the code
+  editor background, gutter and syntax colors.
 - Editor shortcuts for the selected element (web-safe — no Ctrl/Cmd, no
   Alt+digit): **Alt+S** edit CSS, **Alt+C** go to CLASSES, **Alt+J** edit
   SCRIPT (switches the tab and focuses the editor).
