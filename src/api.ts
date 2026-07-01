@@ -1,9 +1,14 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 大松雄斗
+
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import type {
   ClassFile,
   ImageFolder,
   LoadedPlugin,
+  ModuleDef,
+  ModuleFile,
   NodeConfig,
   NodeSnapshot,
   ProjectConfig,
@@ -63,6 +68,29 @@ export const writeClassFile = (
 
 export const deleteClassFile = (projectRoot: string, fileName: string) =>
   invoke<void>("delete_class_file", { projectRoot, fileName });
+
+export const readModules = (projectRoot: string) =>
+  invoke<ModuleFile[]>("read_modules", { projectRoot });
+
+export const writeModuleFile = (
+  projectRoot: string,
+  fileName: string,
+  modules: ModuleDef[]
+) => invoke<void>("write_module_file", { projectRoot, fileName, modules });
+
+export const deleteModuleFile = (projectRoot: string, fileName: string) =>
+  invoke<void>("delete_module_file", { projectRoot, fileName });
+
+export const importModuleFile = (projectRoot: string, srcPath: string) =>
+  invoke<string>("import_module_file", { projectRoot, srcPath });
+
+export async function pickModuleFile(): Promise<string | null> {
+  const sel = await open({
+    multiple: false,
+    filters: [{ name: "Module", extensions: ["yaml", "yml"] }],
+  });
+  return typeof sel === "string" ? sel : null;
+}
 
 export const readImageFolders = (projectRoot: string) =>
   invoke<ImageFolder[]>("read_image_folders", { projectRoot });

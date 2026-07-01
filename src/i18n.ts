@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 大松雄斗
+
 // Tiny i18n layer. The SOURCE language is English: every UI string is written
 // in English and passed through `t()`. A locale pack is a dictionary mapping
 // the English source string → its translation. English is the default (no

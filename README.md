@@ -1,12 +1,11 @@
-# Foling Editor
+# Foling
 
 HTFL (HyperText Foldering Language) 用のデスクトップエディター。
 HTML の DOM 構造を **フォルダ階層** で表現し、ツリー編集・CSS/本文編集・HTML 出力を行えます。
 
-> ライセンス: **GPL-3.0-or-later** ｜ 技術: **Tauri 2 · React · TypeScript · Rust**
+> ライセンス: **AGPL-3.0-or-later** ｜ 技術: **Tauri 2 · React · TypeScript · Rust**
 
-<!-- TODO: スクリーンショットを docs/ に置いてここに掲載 -->
-<!-- ![Foling Editor](docs/screenshot.png) -->
+![Foling のスクリーンショット — DOM ツリー編集と CSS / BASIN カスケード表示](docs/screenshot.png)
 
 ## 主な機能
 
@@ -116,10 +115,15 @@ npm run tauri build
 
 ## ライセンス
 
-[GNU General Public License v3.0 or later](LICENSE) (GPL-3.0-or-later) で配布されます。
+[GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later) で配布されます。
+ネットワーク越しに（Web 版などで）改変版を提供する場合は、その利用者にソースコードを提供する義務があります（AGPL §13）。
 
 Copyright (C) 2026 大松雄斗
 
-このプログラムはフリーソフトウェアです。フリーソフトウェア財団が発行する GNU 一般公衆利用許諾書
+このプログラムはフリーソフトウェアです。フリーソフトウェア財団が発行する GNU アフェロ一般公衆利用許諾書
 (バージョン 3、またはそれ以降のバージョン)の条件の下で、再配布および改変ができます。
 詳細は [`LICENSE`](LICENSE) を参照してください。
+
+同梱する第三者コンポーネント（Rust クレート・npm パッケージ）のライセンスと著作権表示は
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) を参照してください。
+各ソースファイル先頭には SPDX 識別子 (`SPDX-License-Identifier: AGPL-3.0-or-later`) を付与しています。

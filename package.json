@@ -1,12 +1,13 @@
 {
-  "name": "foling-editor",
+  "name": "foling",
   "private": true,
   "version": "0.10.0",
-  "license": "GPL-3.0-or-later",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "clean": "node scripts/clean-dist.mjs",
+    "build": "node scripts/clean-dist.mjs && tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

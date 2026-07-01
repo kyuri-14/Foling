@@ -2,7 +2,7 @@
 
 **HTFL (HyperText Foldering Language)** は、HTML の DOM 構造を **ファイルシステムのフォルダ階層** で表現する言語です。1 フォルダ = 1 要素、フォルダ内の `config.yaml` がその要素の属性・CSS・本文などを保持します。
 
-このドキュメントは Foling Editor が実装している HTFL の正式仕様です。
+このドキュメントは Foling が実装している HTFL の正式仕様です。
 
 ---
 
@@ -32,7 +32,7 @@ my-project/
 
 - **`HTML/`** フォルダがドキュメントの起点で、`<html>` 要素に対応します。
 - `HTML/` の子フォルダ(通常 `head` と `body`)がそのまま `<html>` の子要素になります。
-- `classes/` `images/` `plugins/` `htfl.yaml` は Foling Editor がプロジェクトを開いた際に自動生成されます。
+- `classes/` `images/` `plugins/` `htfl.yaml` は Foling がプロジェクトを開いた際に自動生成されます。
 
 ---
 
@@ -175,7 +175,7 @@ css: |
 
 ## 8. ビルド(HTFL → HTML)
 
-Foling Editor の **RUN / DEV** または **HTML エクスポート** で、以下の手順で 1 枚の HTML を生成します。
+Foling の **RUN / DEV** または **HTML エクスポート** で、以下の手順で 1 枚の HTML を生成します。
 
 1. `htfl.yaml` の `doctype` を出力。
 2. `HTML/` を再帰的に走査して要素ツリーを構築(`NN_` 順)。

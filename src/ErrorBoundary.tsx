@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 大松雄斗
+
 import React from "react";
 
 interface Props {
@@ -24,7 +27,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     // Surface to the console for diagnosis; also keep a short component stack.
-    console.error("Foling Editor crashed:", error, info.componentStack);
+    console.error("Foling crashed:", error, info.componentStack);
     this.setState({ info: info.componentStack ?? null });
   }
 

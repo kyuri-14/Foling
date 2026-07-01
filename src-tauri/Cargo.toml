@@ -1,13 +1,13 @@
 [package]
-name = "foling-editor"
+name = "foling"
 version = "0.10.0"
 description = "Foling — HTFL (HyperText Foldering Language) editor"
 authors = ["大松雄斗"]
-license = "GPL-3.0-or-later"
+license = "AGPL-3.0-or-later"
 edition = "2021"
 
 [lib]
-name = "foling_editor_lib"
+name = "foling_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

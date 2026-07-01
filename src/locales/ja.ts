@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 大松雄斗
+
 import type { LocaleDict } from "../i18n";
 
 // Japanese localization pack. Maps each English source string (the key used
@@ -137,6 +140,27 @@ export const ja: LocaleDict = {
   "Paste (as sibling)": "ペースト (兄弟として貼り付け)",
   "Add child": "子要素を追加",
   "Add sibling below": "直下に兄弟を追加",
+  "Register as module...": "モジュールとして登録...",
+
+  // Modules
+  "Import module file...": "モジュールファイルをインポート...",
+  "Register as module": "モジュールとして登録",
+  Saves: "保存対象:",
+  "and everything under it (CSS + SCRIPT + children) as a reusable module. Type .name in the tree to expand it.":
+    "とその配下すべて (CSS + SCRIPT + 子要素) を再利用可能なモジュールとして保存します。ツリーで .名前 と入力すると展開できます。",
+  "Module name": "モジュール名",
+  "File name": "ファイル名",
+  Register: "登録",
+  "module — Tab/Enter to expand": "モジュール — Tab/Enter で展開",
+  "Module name is required": "モジュール名を入力してください",
+  "Registered module:": "モジュールを登録しました:",
+  "Module not found:": "モジュールが見つかりません:",
+  "Save the parent element before expanding a module":
+    "モジュールを展開する前に親要素を保存してください",
+  "Save the element before registering it as a module":
+    "モジュールに登録する前に要素を保存してください",
+  "Imported module file:": "モジュールファイルをインポートしました:",
+  "Could not determine the parent folder": "親フォルダを特定できませんでした",
 
   // Prompts / confirms
   "Select a parent node": "親ノードを選択してください",

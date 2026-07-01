@@ -7,6 +7,27 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`CODE_OF_CONDUCT.md`** (Contributor Covenant 2.1) and **`SECURITY.md`**
+  (vulnerability-reporting policy + the app's known security characteristics).
+- **`THIRD-PARTY-NOTICES.md`** — attribution for all bundled dependencies
+  (487 Rust crates in the binary closure + the npm runtime packages), with each
+  distinct license's full text in an appendix. All are AGPL-compatible
+  (permissive, plus MPL-2.0 from `scraper`; `r-efi`'s LGPL option is unused).
+- **SPDX license headers** (`SPDX-License-Identifier: AGPL-3.0-or-later`) on all
+  first-party source files.
+- **Modules** — reusable components (a captured subtree: DOM + per-element
+  CSS / SCRIPT, plus the class definitions it uses, bundled so it stays
+  self-contained). Right-click a tree element → **Register as module...** to
+  save it (file defaults to the project name; module name entered on save).
+  In the tree, type **`.name`** in a row to expand a module in place — its
+  missing class definitions are added to `99_modules.css` automatically.
+  Import a module file from another project via **FILE → Import module
+  file...**. Stored as YAML under `modules/`. Ships with a sample bundle
+  `examples/modules/samples.yaml` containing **drawermenu**, **slider** and
+  **modal** (each self-contained with its own CSS + SCRIPT; import and type
+  `.name`).
+- **Ctrl+/** in the CSS / CLASSES / SCRIPT editors toggles comments on the
+  selected line(s) — `/* … */` for CSS, `//` for SCRIPT.
 - **Syntax highlighting** in the CSS / SCRIPT / CLASS editors (lightweight
   transparent-textarea overlay; tokens colored via CSS variables).
 - **Settings → Editor theme** (Dark / Light / Monokai) controlling the code
@@ -24,11 +45,39 @@ versions follow [Semantic Versioning](https://semver.org/).
   (wraps around).
 
 ### Changed
+- **Relicensed from GPL-3.0-or-later to AGPL-3.0-or-later.** AGPL adds the
+  network-use clause (§13) so a future hosted/web version can't ship modified
+  Foling without offering its source. Updated `LICENSE`, `package.json`,
+  `Cargo.toml`, README, CONTRIBUTING and the in-app About dialog.
+- **App icon** generated from the project logo (`src-tauri/app-icon.svg` →
+  `src-tauri/icons/`), replacing the default Tauri logo.
+- Unified all internal names to **Foling / foling** (dropping the "-editor"
+  suffix): npm package `foling`, Cargo package `foling` + lib `foling_lib`,
+  bundle identifier `com.foling`, window/document titles and docs. (The
+  on-disk project folder is renamed separately.)
+- Code-editor comments are now a muted slate-grey (was green), so commented-out
+  CSS / JS reads clearly as "disabled" across all three editor themes.
 - Menu bar now follows the common desktop pattern: once a top-level menu is
   open, hovering another top item (e.g. VIEW → WINDOW) switches to it.
 - Element-editor toggle moved from Ctrl+T to **Alt+T** (consistent with the
   Alt shortcuts and web-safe). Row reorder is now **Alt+Shift+↑/↓**; indent /
   outdent is **Alt+←/→**.
+
+### Fixed
+- **Production build** (`npm run build` / `tauri build`) failing on a rebuild.
+  A bug in Node 24.x on Windows makes the native recursive remove
+  (`fs.rm`/`fs.rmdir` with `recursive: true`) hard-abort the process
+  (STATUS_STACK_BUFFER_OVERRUN); Vite's `emptyOutDir` uses it, so the second
+  build into an existing `dist/` crashed right after "modules transformed"
+  with no error. Added `scripts/clean-dist.mjs` (a manual, non-recursive
+  delete) run before `tsc && vite build`, so `dist/` is cleared without
+  hitting the broken native path.
+- CSS declarations sharing one physical line (e.g.
+  `width: 100%; max-width: 960px;`) are now parsed as separate properties.
+  The BASIN cascade, inheritance and z-index resolution split on `;` rather
+  than on newlines, so each property shows on its own row. The splitter
+  respects parens, quotes and comments (so `;` inside `url(data:…;base64,…)`,
+  `,` inside `rgba()`, and `//` inside `url(http://…)` are left intact).
 
 ## [0.10.0] - 2026-06
 

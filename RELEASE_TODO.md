@@ -1,7 +1,38 @@
-# Foling Editor — 公開準備 TODO
+# Foling — 公開準備 TODO
 
 現状調査(2026-06-05 時点)に基づく、一般公開までに不足している機能・実装の一覧。
 優先度順: **P0(リリースブロッカー)** → **P4(保守性)**。
+
+---
+
+## 🚀 初回 push 前の手順（下ごしらえ済み — 記入・実行のみ）
+
+ドキュメント類の連絡先は **GitHub の非公開報告に一本化**したので、必須のプレースホルダは
+ありません（そのまま公開可）。残りは以下だけです。
+
+1. **git の author を設定**（現在 `noreply@example.com`）:
+   ```
+   git config user.name  "あなたの名前"
+   git config user.email "あなたのメール"
+   ```
+2. **（任意）専用の連絡先メール**を使うなら `SECURITY.md` と `CODE_OF_CONDUCT.md` の
+   Enforcement 節に追記（未記入でも GitHub の非公開報告で機能します）。
+3. **GitHub リポジトリ作成 → remote → push**（`gh` はインストール済み・未ログイン）:
+   ```
+   gh auth login
+   gh repo create Foling --public --source=. --remote=origin --push
+   ```
+   もしくは Web で作成後に:
+   ```
+   git remote add origin https://github.com/<ユーザー名>/Foling.git
+   git add -A && git commit -m "Prepare for public release (AGPL, icon, notices, docs)"
+   git branch -M main && git push -u origin main
+   ```
+4. **`src/App.tsx` の `REPO_URL`**（86 行目・現在は空文字）に
+   `https://github.com/<ユーザー名>/Foling` を設定（About ダイアログにリポジトリ URL 表示）。
+5. **リポジトリ設定**: Settings → Code security → *Private vulnerability reporting* を有効化
+   （`SECURITY.md` の報告窓口が機能するようになります）。
+6. 署名／公証・自動アップデートは証明書・配信基盤の準備後（下記 P0 / P1 参照）。
 
 ---
 
@@ -9,14 +40,15 @@
 
 - [x] **Git リポジトリ初期化** — `git init`(`main` ブランチ)+ 初回コミット完了。
       ※ リモート(GitHub 等)の作成・push は別途。
-- [x] **LICENSE ファイル** — GPL-3.0 全文を `LICENSE` に配置。
-      `package.json` / `Cargo.toml` に `license: GPL-3.0-or-later` を追加。README にライセンス節を追加。
-- [x] **bundle identifier の ASCII 化** — `com.大松雄斗.foling-editor` → `com.foling.editor`。
+- [x] **LICENSE ファイル** — AGPL-3.0 全文を `LICENSE` に配置。
+      `package.json` / `Cargo.toml` に `license: AGPL-3.0-or-later` を追加。README にライセンス節を追加。
+- [x] **bundle identifier の ASCII 化** — `com.大松雄斗.foling-editor` → `com.foling`。
 - [x] **Content-Security-Policy 設定** — `tauri.conf.json` の `security.csp` を設定済み
       (self + ローカルプレビュー 127.0.0.1 の img/connect + inline style + blob worker)。
       ⚠ **要動作確認**: `npm run tauri dev` で白画面/読み込み失敗が出ないこと。問題時は一旦 `null` に戻す。
-- [ ] **アプリアイコンの差し替え(要・独自画像)** — 現状は **Tauri 既定ロゴのまま**。
-      1024×1024 程度の PNG を用意し `npm run tauri icon path/to/icon.png` で全サイズ生成。
+- [x] **アプリアイコンの差し替え** — ロゴを正方形化した `src-tauri/app-icon.svg`
+      (ダーク角丸タイル＋シアンのツリー) から `npm run tauri icon` で全サイズ生成済み。
+      再生成は `npm run tauri icon src-tauri/app-icon.svg`。
 - [ ] **コード署名 / 公証(notarization)(要・証明書)** — 未署名のため Windows SmartScreen /
       macOS Gatekeeper が警告。README に注意書きは追記済み。正式配布時に証明書で署名。
 
@@ -54,7 +86,7 @@
       タグ名 / id / class / 本文 / CSS を横断検索し、クリックで該当要素へジャンプ。
       ※ **置換(replace)は未実装**(破壊的操作のため別途慎重に設計)。
 - [x] **キーボードショートカット一覧** — `ShortcutsModal`(HELP > キーボードショートカット)。
-- [x] **About ダイアログ** — `AboutModal`(HELP > Foling Editor について)。版・ライセンス・技術構成。
+- [x] **About ダイアログ** — `AboutModal`(HELP > Foling について)。版・ライセンス・技術構成。
 - [~] **アクセシビリティ(一部)** — 全モーダルに `role="dialog"` / `aria-modal` / Esc クローズ、
       通知に `role=alert/status` + `aria-live`、アイコンボタンに `aria-label` を付与。
       ※ ツリー/エディタ全体の網羅的な ARIA 対応・フォーカストラップは継続課題。
@@ -74,8 +106,11 @@
       `doc`(tree / projectConfig / classFiles)の型、実行制約、サンプル解説。
 - [x] **CHANGELOG.md** — Keep a Changelog 形式で作成。
 - [x] **CONTRIBUTING.md** — 開発手順・検証・方針を記載。
-- [ ] **(任意)Issue / PR テンプレート / 行動規範** — `.github/` 配下に追加(P4 の CI 整備と同時が効率的)。
-- [ ] **スクリーンショット** — `docs/screenshot.png` を用意して README に差し込み(要・画像)。
+- [x] **Issue / PR テンプレート / 行動規範 / セキュリティ** — `.github/` にテンプレート、
+      ルートに `CODE_OF_CONDUCT.md`(Contributor Covenant 2.1)と `SECURITY.md` を追加。
+      報告窓口は GitHub の非公開報告に一本化(メール不要・プレースホルダなし)。
+- [x] **スクリーンショット** — `docs/screenshot.png`(ツリー編集＋CSS/BASIN カスケード)を
+      作成し README に掲載。
 
 ---
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 大松雄斗
+
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
@@ -49,6 +52,7 @@ const CONFIG_FILE: &str = "config.yaml";
 const PROJECT_FILE: &str = "htfl.yaml";
 const HTML_ROOT: &str = "HTML";
 const CLASSES_DIR: &str = "classes";
+const MODULES_DIR: &str = "modules";
 const IMAGES_DIR: &str = "images";
 const PLUGINS_DIR: &str = "plugins";
 const DEFAULT_DOCTYPE: &str = "<!DOCTYPE html>";
@@ -320,6 +324,25 @@ pub struct NodeSnapshot {
 pub struct ClassFile {
     pub name: String,
     pub content: String,
+}
+
+/// A reusable component: a captured subtree (DOM + per-element CSS/JS/classes)
+/// plus the class definitions it references, bundled so the module is
+/// self-contained and can be expanded into any project.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ModuleDef {
+    pub name: String,
+    pub snapshot: NodeSnapshot,
+    /// Bundled `.class { ... }` definitions used by the subtree (CSS text).
+    #[serde(default)]
+    pub css: String,
+}
+
+/// One module file under `modules/` — a YAML list of [`ModuleDef`].
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ModuleFile {
+    pub name: String,
+    pub modules: Vec<ModuleDef>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1056,6 +1079,85 @@ fn delete_class_file(project_root: String, file_name: String) -> Result<(), Stri
     fs::remove_file(&p).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn read_modules(project_root: String) -> Result<Vec<ModuleFile>, String> {
+    let dir = PathBuf::from(&project_root).join(MODULES_DIR);
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut entries: Vec<_> = fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.path()
+                .extension()
+                .map(|x| x.eq_ignore_ascii_case("yaml") || x.eq_ignore_ascii_case("yml"))
+                .unwrap_or(false)
+        })
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+    let mut out = Vec::new();
+    for e in entries {
+        let content = fs::read_to_string(e.path()).map_err(|x| x.to_string())?;
+        // A malformed module file must not crash the whole load — skip it.
+        let modules: Vec<ModuleDef> = if content.trim().is_empty() {
+            Vec::new()
+        } else {
+            match serde_yml::from_str(&content) {
+                Ok(m) => m,
+                Err(_) => continue,
+            }
+        };
+        out.push(ModuleFile {
+            name: e.file_name().to_string_lossy().into_owned(),
+            modules,
+        });
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+fn write_module_file(
+    project_root: String,
+    file_name: String,
+    modules: Vec<ModuleDef>,
+) -> Result<(), String> {
+    if file_name.contains('/') || file_name.contains('\\') {
+        return Err("ファイル名にパス区切り文字は使えません".into());
+    }
+    let dir = PathBuf::from(&project_root).join(MODULES_DIR);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let yaml = serde_yml::to_string(&modules).map_err(|e| e.to_string())?;
+    retry_io(|| fs::write(dir.join(&file_name), &yaml)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_module_file(project_root: String, file_name: String) -> Result<(), String> {
+    if file_name.contains('/') || file_name.contains('\\') {
+        return Err("ファイル名にパス区切り文字は使えません".into());
+    }
+    let p = PathBuf::from(&project_root).join(MODULES_DIR).join(&file_name);
+    fs::remove_file(&p).map_err(|e| e.to_string())
+}
+
+/// Copy an external module file into the project's `modules/` folder after
+/// validating that it parses as a module list. Returns the stored file name.
+#[tauri::command]
+fn import_module_file(project_root: String, src_path: String) -> Result<String, String> {
+    let src = PathBuf::from(&src_path);
+    let content = fs::read_to_string(&src).map_err(|e| e.to_string())?;
+    serde_yml::from_str::<Vec<ModuleDef>>(&content)
+        .map_err(|e| format!("モジュールファイルとして読み込めません: {e}"))?;
+    let file_name = src
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .ok_or_else(|| "ファイル名が不正です".to_string())?;
+    let dir = PathBuf::from(&project_root).join(MODULES_DIR);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    fs::write(dir.join(&file_name), content).map_err(|e| e.to_string())?;
+    Ok(file_name)
+}
+
 /// Enumerate `images/<folder>/<file>` so the editor can present them like
 /// classes — pick a folder, see its images, click one to apply.
 #[tauri::command]
@@ -1744,6 +1846,10 @@ pub fn run() {
             read_class_files,
             write_class_file,
             delete_class_file,
+            read_modules,
+            write_module_file,
+            delete_module_file,
+            import_module_file,
             read_image_folders,
             build_html,
             export_html,
@@ -1762,6 +1868,103 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn module_def_yaml_roundtrip() {
+        // A module file is a YAML sequence of ModuleDef — make sure the bundled
+        // snapshot + css survive a write→read round-trip unchanged.
+        let m = ModuleDef {
+            name: "card".into(),
+            snapshot: NodeSnapshot {
+                name: "01_div".into(),
+                config: NodeConfig::default(),
+                children: vec![NodeSnapshot {
+                    name: "01_p".into(),
+                    config: NodeConfig::default(),
+                    children: vec![],
+                }],
+            },
+            css: ".card { color: red; }".into(),
+        };
+        let yaml = serde_yml::to_string(&vec![m]).unwrap();
+        let back: Vec<ModuleDef> = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(back.len(), 1);
+        assert_eq!(back[0].name, "card");
+        assert_eq!(back[0].css, ".card { color: red; }");
+        assert_eq!(back[0].snapshot.name, "01_div");
+        assert_eq!(back[0].snapshot.children.len(), 1);
+        assert_eq!(back[0].snapshot.children[0].name, "01_p");
+    }
+
+    #[test]
+    fn sample_modules_parse() {
+        // The shipped sample module file must stay a valid module list holding
+        // the three sample components, each with bundled css and a subtree.
+        let mods: Vec<ModuleDef> =
+            serde_yml::from_str(include_str!("../../examples/modules/samples.yaml"))
+                .unwrap_or_else(|e| panic!("samples.yaml failed to parse: {e}"));
+        let names: Vec<&str> = mods.iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(names, ["drawermenu", "slider", "modal"]);
+        for m in &mods {
+            assert!(!m.css.trim().is_empty(), "{} has bundled css", m.name);
+            assert!(!m.snapshot.children.is_empty(), "{} has a subtree", m.name);
+        }
+    }
+
+    #[test]
+    fn sample_module_builds_to_html() {
+        // End-to-end: scaffold a temp project, restore the drawermenu module
+        // under <body> (as the editor's expansion does), inject its bundled
+        // css, then build — and check the real HTML/JS/CSS comes out.
+        let dir = std::env::temp_dir().join(format!(
+            "foling_modtest_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let root = dir.to_string_lossy().into_owned();
+        init_project(root.clone(), None).unwrap();
+
+        let mods: Vec<ModuleDef> =
+            serde_yml::from_str(include_str!("../../examples/modules/samples.yaml")).unwrap();
+        let drawer = mods.iter().find(|m| m.name == "drawermenu").unwrap();
+        let body = dir.join(HTML_ROOT).join("02_body");
+        restore_subtree(body.to_string_lossy().into_owned(), drawer.snapshot.clone()).unwrap();
+
+        let classes = dir.join(CLASSES_DIR);
+        fs::create_dir_all(&classes).unwrap();
+        fs::write(classes.join("99_modules.css"), &drawer.css).unwrap();
+
+        let html = generate_html(&dir, false).unwrap();
+        let _ = fs::remove_dir_all(&dir); // best-effort cleanup
+
+        assert!(html.contains("class=\"drawer\""), "root class emitted");
+        assert!(
+            html.contains("aria-label=\"Open menu\""),
+            "toggle attribute emitted"
+        );
+        assert!(html.contains("data-htfl-id="), "js element tagged");
+        assert!(
+            html.contains("el.classList.add('is-open')"),
+            "per-element js emitted"
+        );
+        assert!(
+            html.contains(".drawer.is-open .drawer-panel"),
+            "compound-selector css preserved in <style>"
+        );
+    }
+
+    #[test]
+    fn module_def_css_defaults_when_missing() {
+        // Older / hand-written module files may omit `css:` — it must default
+        // to empty rather than failing to parse.
+        let yaml = "- name: bare\n  snapshot:\n    name: 01_div\n    config: {}\n    children: []\n";
+        let back: Vec<ModuleDef> = serde_yml::from_str(yaml).unwrap();
+        assert_eq!(back.len(), 1);
+        assert_eq!(back[0].css, "");
+    }
 
     #[test]
     fn resolve_tag_known_unknown_custom() {

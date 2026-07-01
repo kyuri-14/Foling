@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 大松雄斗
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { t, setLocaleDict, useLocaleVersion } from "./i18n";
@@ -8,6 +11,10 @@ import {
   createNode,
   deleteClassFile,
   deleteNode,
+  importModuleFile,
+  pickModuleFile,
+  readModules,
+  writeModuleFile,
   initProject,
   exportHtml,
   importHtml,
@@ -52,6 +59,8 @@ import {
   ExporterDef,
   ImageFolder,
   LoadedPlugin,
+  ModuleDef,
+  ModuleFile,
   SnippetEntry,
   emptyConfig,
   HeadConfig,
@@ -327,14 +336,65 @@ interface CssDecl {
   value: string;
 }
 
+// Split raw CSS text into individual declarations on ';', then "prop: value".
+// We scan char-by-char so that ';' inside parens (e.g. url("data:...;base64"))
+// or quotes, ',' inside rgba(), and comments don't break a declaration apart.
+// This also lets several declarations share one physical line
+// (e.g. `width: 100%; max-width: 960px;`) and still resolve to separate props.
 function parseCssDeclarations(css: string | undefined | null): CssDecl[] {
   if (!css) return [];
+  const chunks: string[] = [];
+  let buf = "";
+  let depth = 0; // () / [] nesting
+  let quote: string | null = null;
+  for (let i = 0; i < css.length; i++) {
+    const c = css[i];
+    const n = css[i + 1];
+    if (quote) {
+      buf += c;
+      if (c === "\\") {
+        buf += n ?? "";
+        i++;
+      } else if (c === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (c === "/" && n === "*") {
+      // Block comment — skip to the closing */ (may span lines).
+      i += 2;
+      while (i < css.length && !(css[i] === "*" && css[i + 1] === "/")) i++;
+      i++;
+      continue;
+    }
+    if (c === "/" && n === "/" && depth === 0) {
+      // Line comment — skip to EOL. Restricted to depth 0 so the // in
+      // url(http://…) is preserved.
+      while (i < css.length && css[i] !== "\n") i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      buf += c;
+    } else if (c === "(" || c === "[") {
+      depth++;
+      buf += c;
+    } else if (c === ")" || c === "]") {
+      if (depth > 0) depth--;
+      buf += c;
+    } else if (c === ";" && depth === 0) {
+      chunks.push(buf);
+      buf = "";
+    } else {
+      buf += c;
+    }
+  }
+  chunks.push(buf);
+
   const out: CssDecl[] = [];
-  for (const raw of css.split("\n")) {
-    let line = raw.trim();
+  for (const chunk of chunks) {
+    const line = chunk.trim();
     if (!line) continue;
-    if (line.startsWith("//") || line.startsWith("/*")) continue;
-    if (line.endsWith(";")) line = line.slice(0, -1).trim();
     const ci = line.indexOf(":");
     if (ci <= 0) continue;
     const prop = line.slice(0, ci).trim().toLowerCase();
@@ -445,6 +505,25 @@ function parentNode(root: TreeNode, target: string): TreeNode | null {
     if (inner) return inner;
   }
   return null;
+}
+
+// Find the node whose path equals `target`, including the root itself.
+function findNodeByPath(root: TreeNode, target: string): TreeNode | null {
+  if (root.path === target) return root;
+  for (const c of root.children) {
+    const found = findNodeByPath(c, target);
+    if (found) return found;
+  }
+  return null;
+}
+
+// Collect every class name referenced anywhere in a snapshot subtree,
+// normalized to ".name" — so a module can bundle those definitions.
+function collectSnapshotClasses(snap: NodeSnapshot, out: Set<string>): void {
+  for (const cn of snap.config.classes ?? []) {
+    out.add(cn.startsWith(".") ? cn : "." + cn);
+  }
+  for (const child of snap.children) collectSnapshotClasses(child, out);
 }
 
 // Flatten the actual disk tree into a row list. Preserves collapse state
@@ -1307,6 +1386,13 @@ export default function App() {
   );
   const [classFileContent, setClassFileContent] = useState<string>("");
   const [classFileDirty, setClassFileDirty] = useState(false);
+  // Module files (reusable components), loaded from modules/*.yaml. Flattened
+  // into a single list since module names are looked up by name on expansion.
+  const [moduleFiles, setModuleFiles] = useState<ModuleFile[]>([]);
+  // Row pending "register as module" — drives the registration modal.
+  const [moduleRegisterRow, setModuleRegisterRow] = useState<FlatRow | null>(
+    null
+  );
   // Kept for backward compatibility; the CLASSES tab supersedes it.
   const [showClassesModal] = useState(false);
   const [showVarsModal, setShowVarsModal] = useState(false);
@@ -1348,6 +1434,14 @@ export default function App() {
   );
 
   const classDefs = useMemo(() => parseClassDefs(classFiles), [classFiles]);
+
+  // All modules across every module file, flattened for name lookup. The
+  // names feed the `.module` tree autocomplete; the defs drive expansion.
+  const modules = useMemo(
+    () => moduleFiles.flatMap((f) => f.modules),
+    [moduleFiles]
+  );
+  const moduleNames = useMemo(() => modules.map((m) => m.name), [modules]);
 
   // Ancestor path of the selected element (root → parent, excluding self)
   const ancestorPath = useMemo(() => {
@@ -1737,6 +1831,7 @@ export default function App() {
       const t = await readTree(root);
       const cfg = await readProjectConfig(root);
       const cf = await readClassFiles(root);
+      const mf = await readModules(root).catch(() => []);
       const imgs = await readImageFolders(root);
       const plg = await readPlugins(root).catch(() => []);
       const htmlNode = await readNode(t.path).catch(() => null);
@@ -1748,6 +1843,7 @@ export default function App() {
       setTreeDirty(false);
       setProjectConfig(cfg);
       setClassFiles(cf);
+      setModuleFiles(mf);
       setSelectedClassFile(null);
       setClassFileContent("");
       setClassFileDirty(false);
@@ -1771,6 +1867,12 @@ export default function App() {
     if (!projectRoot) return;
     const cf = await readClassFiles(projectRoot);
     setClassFiles(cf);
+  }
+
+  async function reloadModules() {
+    if (!projectRoot) return;
+    const mf = await readModules(projectRoot).catch(() => []);
+    setModuleFiles(mf);
   }
 
   async function reloadImageFolders() {
@@ -2136,6 +2238,159 @@ export default function App() {
       setTreeClipboard(snap);
       const tag = row.name.trim() || "element";
       setInfo(`Copied <${tag}> (paste with Ctrl+V)`);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  // ----- Modules (reusable components) -----
+
+  // Register a row's subtree (DOM + per-element css/js/classes/content) plus
+  // the class definitions it references as a named module, appended to (or
+  // replaced by name within) a module file. `actualPath` is captured up front
+  // so a pending rename doesn't matter — the on-disk folder still exists.
+  async function registerModule(
+    actualPath: string,
+    moduleName: string,
+    fileBase: string
+  ) {
+    if (!projectRoot) return;
+    const name = moduleName.trim();
+    if (!name) {
+      setError(t("Module name is required"));
+      return;
+    }
+    const base = fileBase.trim() || "modules";
+    const fileName = /\.ya?ml$/i.test(base) ? base : `${base}.yaml`;
+    try {
+      const snapshot = await snapshotSubtree(actualPath);
+      // Bundle the class definitions the subtree references.
+      const used = new Set<string>();
+      collectSnapshotClasses(snapshot, used);
+      let css = "";
+      for (const cn of used) {
+        for (const def of classDefs.filter((d) => d.name === cn)) {
+          css += `${def.name} {\n${def.properties}\n}\n\n`;
+        }
+      }
+      const existing = moduleFiles.find((f) => f.name === fileName);
+      const mods: ModuleDef[] = existing ? [...existing.modules] : [];
+      const idx = mods.findIndex((m) => m.name === name);
+      const def: ModuleDef = { name, snapshot, css };
+      if (idx >= 0) mods[idx] = def;
+      else mods.push(def);
+      await writeModuleFile(projectRoot, fileName, mods);
+      await reloadModules();
+      setInfo(`${t("Registered module:")} .${name} → ${fileName}`);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  // Add a module's bundled class definitions to the project. The raw CSS is
+  // appended verbatim (so compound selectors like `.x.is-open .y` survive) to
+  // a dedicated modules.css, wrapped in module-name markers so re-expanding the
+  // same module — even many instances — never duplicates its styles.
+  async function injectModuleClasses(moduleName: string, css: string) {
+    if (!projectRoot || !css.trim()) return;
+    const target = "99_modules.css";
+    const existingFile = classFiles.find((f) => f.name === target);
+    let content = existingFile?.content ?? "";
+    const marker = `/* >>> module: ${moduleName} */`;
+    if (content.includes(marker)) return; // already injected
+    const block = `${marker}\n${css.trim()}\n/* <<< module: ${moduleName} */\n`;
+    if (content && !content.endsWith("\n")) content += "\n";
+    content += block;
+    await writeClassFile(projectRoot, target, content);
+    await reloadClassFiles();
+  }
+
+  // Expand a module into the tree at the placeholder row's position. The row
+  // where the user typed `.module` becomes the module's root: we delete that
+  // placeholder folder, restore the module subtree under the same parent, and
+  // inject any missing class definitions. Serialized through the paste chain so
+  // it can't race a concurrent paste/expand.
+  function expandModuleIntoRow(row: FlatRow, moduleName: string) {
+    if (!projectRoot) return;
+    const mod = modules.find((m) => m.name === moduleName);
+    if (!mod) {
+      setInfo(`${t("Module not found:")} ${moduleName}`);
+      return;
+    }
+    // Resolve the parent from the *current* rows: nearest preceding row one
+    // level shallower. For a depth-1 placeholder that's the body root.
+    const i = rows.findIndex((r) => r.id === row.id);
+    let parentPath: string | null = null;
+    if (i >= 0) {
+      for (let j = i - 1; j >= 0; j--) {
+        if (rows[j].depth < row.depth - 1) break;
+        if (rows[j].depth === row.depth - 1) {
+          parentPath = rows[j].actualPath ?? null;
+          break;
+        }
+      }
+    }
+    if (!parentPath) {
+      setError(t("Save the parent element before expanding a module"));
+      return;
+    }
+    const placeholderPath = row.actualPath;
+    const parent = parentPath;
+    const root = projectRoot;
+    pasteChainRef.current = pasteChainRef.current
+      .catch(() => {})
+      .then(async () => {
+        // Drop the placeholder element folder (the `.module` row) if it was
+        // already auto-committed to disk.
+        if (placeholderPath) {
+          try {
+            await deleteNode(placeholderPath);
+          } catch {
+            /* folder may not exist yet — ignore */
+          }
+        }
+        const fresh = await readTree(root);
+        const parentNd = findNodeByPath(fresh, parent);
+        if (!parentNd) {
+          setError(t("Could not determine the parent folder"));
+          return;
+        }
+        const used = new Set<number>();
+        for (const c of parentNd.children) {
+          const n = nnOf(basenameOf(c.path));
+          if (n != null) used.add(n);
+        }
+        let next = 1;
+        for (const n of used) if (n >= next) next = n + 1;
+        const tagPart = mod.snapshot.name.replace(/^\d+_/, "");
+        const renamed: NodeSnapshot = {
+          ...mod.snapshot,
+          name: `${String(next).padStart(2, "0")}_${tagPart}`,
+        };
+        const newPath = await restoreSubtree(parent, renamed);
+        await injectModuleClasses(mod.name, mod.css);
+        pushUndo({ type: "create", path: newPath });
+        const tNext = await readTree(root);
+        setTree(tNext);
+        const nextView = getViewRoot(tNext, treeView);
+        setRows((cur) => syncRowsFromTree(nextView, cur));
+        setTreeDirty(false);
+        setSelectedPath(newPath);
+        setHighlightSourcePath(null);
+        scheduleRebuild();
+      })
+      .catch((e) => setError(String(e)));
+  }
+
+  // FILE → import a module file from elsewhere into this project's modules/.
+  async function importModuleFlow() {
+    if (!projectRoot) return;
+    try {
+      const src = await pickModuleFile();
+      if (!src) return;
+      const name = await importModuleFile(projectRoot, src);
+      await reloadModules();
+      setInfo(`${t("Imported module file:")} ${name}`);
     } catch (e) {
       setError(String(e));
     }
@@ -2892,6 +3147,7 @@ export default function App() {
         onSave={saveNow}
         onExportHtml={exportHtmlFlow}
         onImportHtml={importHtmlFlow}
+        onImportModule={importModuleFlow}
         onAddChild={addChild}
         onDelete={deleteSelected}
         onRename={renameSelected}
@@ -2946,6 +3202,9 @@ export default function App() {
             onCopySubtree={copyRowToClipboard}
             onPasteSubtree={pasteRowSubtree}
             onEditRow={openElementEditor}
+            moduleNames={moduleNames}
+            onExpandModule={expandModuleIntoRow}
+            onRegisterModule={(row) => setModuleRegisterRow(row)}
             hasClipboard={treeClipboard !== null}
             focusPath={treeFocusPath}
             onFocused={() => setTreeFocusPath(null)}
@@ -3017,6 +3276,25 @@ export default function App() {
           onSave={async (vars) => {
             await saveVariables(vars);
             setShowVarsModal(false);
+          }}
+        />
+      )}
+      {moduleRegisterRow && (
+        <ModuleRegisterModal
+          tagLabel={moduleRegisterRow.name.trim() || "element"}
+          defaultFileBase={
+            projectRoot ? basenameOf(projectRoot) || "modules" : "modules"
+          }
+          existingFiles={moduleFiles.map((f) => f.name)}
+          onClose={() => setModuleRegisterRow(null)}
+          onSubmit={(moduleName, fileBase) => {
+            const path = moduleRegisterRow.actualPath;
+            setModuleRegisterRow(null);
+            if (!path) {
+              setInfo(t("Save the element before registering it as a module"));
+              return;
+            }
+            registerModule(path, moduleName, fileBase);
           }}
         />
       )}
@@ -3141,6 +3419,7 @@ function MenuBar(props: {
   onSave: () => void;
   onExportHtml: () => void;
   onImportHtml: () => void;
+  onImportModule: () => void;
   onAddChild: () => void;
   onDelete: () => void;
   onRename: () => void;
@@ -3208,6 +3487,10 @@ function MenuBar(props: {
         </MenuOption>
         <MenuOption onClick={props.onExportHtml} disabled={!props.hasProject}>
           {t("Export HTML... (HTFL →)")}
+        </MenuOption>
+        <div className="menu-divider" />
+        <MenuOption onClick={props.onImportModule} disabled={!props.hasProject}>
+          {t("Import module file...")}
         </MenuOption>
       </MenuItem>
       <MenuItem
@@ -3403,6 +3686,8 @@ interface ContextMenuState {
 
 interface RowAcState {
   rowIndex: number;
+  /** "tag" completes the tag name in place; "module" expands a module. */
+  kind: "tag" | "module";
   items: string[];
   selectedIndex: number;
   prefix: string;
@@ -3434,6 +3719,12 @@ function TreeEditorPanel(props: {
   /** Open the element editor (content / image / attributes) for a row.
    *  `lineNumber` is the row's 1-based line = the element's id. */
   onEditRow: (row: FlatRow, lineNumber: number) => void;
+  /** Module names available for `.module` autocomplete in the tree. */
+  moduleNames: string[];
+  /** Expand the named module into the tree, replacing `row`. */
+  onExpandModule: (row: FlatRow, moduleName: string) => void;
+  /** Register the row's subtree as a reusable module (opens the modal). */
+  onRegisterModule: (row: FlatRow) => void;
   /** True if there's a subtree on the clipboard available to paste. */
   hasClipboard: boolean;
   /** When set, focus the row whose actualPath matches (e.g. after undo, to
@@ -3577,6 +3868,36 @@ function TreeEditorPanel(props: {
     const value = input.value;
     const cursor = input.selectionStart ?? value.length;
     const upto = value.slice(0, cursor);
+    const rect = input.getBoundingClientRect();
+
+    // Module mode: a row whose whole content is `.something` references a
+    // module. Suggest module names (all of them while only "." is typed).
+    const modMatch = /^\.([a-zA-Z0-9_-]*)$/.exec(value.trim());
+    if (modMatch) {
+      if (props.moduleNames.length === 0) {
+        setAc(null);
+        return;
+      }
+      const prefix = modMatch[1];
+      const items = prefix
+        ? rankByFuzzy(prefix, props.moduleNames, (n) => n, 12)
+        : props.moduleNames.slice(0, 12);
+      if (items.length === 0) {
+        setAc(null);
+        return;
+      }
+      setAc({
+        rowIndex,
+        kind: "module",
+        items,
+        selectedIndex: 0,
+        prefix,
+        popupTop: rect.bottom + 2,
+        popupLeft: rect.left,
+      });
+      return;
+    }
+
     const m = /([a-zA-Z][a-zA-Z0-9_-]*)$/.exec(upto);
     if (!m || m[1].length === 0) {
       setAc(null);
@@ -3588,9 +3909,9 @@ function TreeEditorPanel(props: {
       setAc(null);
       return;
     }
-    const rect = input.getBoundingClientRect();
     setAc({
       rowIndex,
+      kind: "tag",
       items,
       selectedIndex: 0,
       prefix,
@@ -3600,6 +3921,13 @@ function TreeEditorPanel(props: {
   }
 
   function acceptAcCompletion(rowIndex: number, item: string) {
+    // Module mode: expand the named module in place of this row instead of
+    // completing tag-name text. The parent re-reads the tree afterward.
+    if (ac?.kind === "module") {
+      setAc(null);
+      props.onExpandModule(props.rows[rowIndex], item);
+      return;
+    }
     const input = document.querySelector<HTMLInputElement>(
       `input[data-row-index="${rowIndex}"]`
     );
@@ -3738,6 +4066,15 @@ function TreeEditorPanel(props: {
   function handleRowCommit(rowIndex: number) {
     const r = props.rows[rowIndex];
     if (!r || r.name.trim() === "") return;
+    // A `.…` row is a module reference, not a tag. On blur, expand it if it
+    // names a known module; either way never persist a `.`-row as an element.
+    if (r.name.trim().startsWith(".")) {
+      const modName = /^\.([a-zA-Z0-9_-]+)$/.exec(r.name.trim());
+      if (modName && props.moduleNames.includes(modName[1])) {
+        props.onExpandModule(r, modName[1]);
+      }
+      return;
+    }
     if (!r.actualPath) props.onSelectRow(r);
     else props.onCommitRowEdit(r);
   }
@@ -3866,6 +4203,16 @@ function TreeEditorPanel(props: {
           </div>
           <div className="tree-context-divider" />
           <div
+            className="tree-context-item"
+            onClick={() => {
+              props.onRegisterModule(props.rows[contextMenu.rowIndex]);
+              setContextMenu(null);
+            }}
+          >
+            {t("Register as module...")}
+          </div>
+          <div className="tree-context-divider" />
+          <div
             className="tree-context-item danger"
             onClick={() => {
               deleteRow(contextMenu.rowIndex);
@@ -3878,7 +4225,7 @@ function TreeEditorPanel(props: {
       )}
       {ac && (
         <div
-          className="ac-popup"
+          className={`ac-popup ${ac.kind === "module" ? "ac-popup-module" : ""}`}
           style={{
             position: "fixed",
             top: ac.popupTop,
@@ -3894,11 +4241,16 @@ function TreeEditorPanel(props: {
                 acceptAcCompletion(ac.rowIndex, name);
               }}
             >
-              <span className="ac-item-name">{name}</span>
+              {ac.kind === "module" && <span className="ac-item-icon">▣</span>}
+              <span className="ac-item-name">
+                {ac.kind === "module" ? `.${name}` : name}
+              </span>
             </div>
           ))}
           <div className="ac-popup-help">
-            ↑↓ select / Tab/Enter accept / Esc cancel
+            {ac.kind === "module"
+              ? t("module — Tab/Enter to expand")
+              : "↑↓ select / Tab/Enter accept / Esc cancel"}
           </div>
         </div>
       )}
@@ -4326,6 +4678,64 @@ function estimateCaretCoords(ta: HTMLTextAreaElement) {
 
 type CssSectionId = "inherited" | "classes" | "css" | "basin";
 
+// Toggle line comments over the textarea's current selection (Ctrl+/). `block`
+// wraps each line in `/* … */` (valid CSS); `line` prefixes `//` (JS). Running
+// it again on already-commented lines uncomments them. Blank lines are skipped.
+type CommentStyle = "block" | "line";
+
+function applyCommentToggle(
+  textarea: HTMLTextAreaElement,
+  value: string,
+  style: CommentStyle,
+  onChange: (v: string) => void
+) {
+  const selStart = textarea.selectionStart;
+  const selEnd = textarea.selectionEnd;
+  const lineStart = value.lastIndexOf("\n", selStart - 1) + 1;
+  // Probe from just inside the selection so a selection ending exactly at a
+  // line boundary doesn't pull in the following line.
+  const probe = selEnd > selStart ? selEnd - 1 : selEnd;
+  let lineEnd = value.indexOf("\n", probe);
+  if (lineEnd === -1) lineEnd = value.length;
+
+  const block = value.slice(lineStart, lineEnd);
+  const lines = block.split("\n");
+  const isCommented = (l: string): boolean => {
+    const t = l.trim();
+    return style === "block"
+      ? t.startsWith("/*") && t.endsWith("*/")
+      : t.startsWith("//");
+  };
+  const nonEmpty = lines.filter((l) => l.trim() !== "");
+  const uncommenting = nonEmpty.length > 0 && nonEmpty.every(isCommented);
+
+  const newLines = lines.map((l) => {
+    if (l.trim() === "") return l;
+    const m = /^(\s*)(.*)$/.exec(l)!;
+    const indent = m[1];
+    let body = m[2];
+    if (uncommenting) {
+      body =
+        style === "block"
+          ? body.replace(/^\/\*\s?/, "").replace(/\s?\*\/$/, "")
+          : body.replace(/^\/\/\s?/, "");
+    } else {
+      body = style === "block" ? `/* ${body} */` : `// ${body}`;
+    }
+    return indent + body;
+  });
+
+  const newBlock = newLines.join("\n");
+  if (newBlock === block) return;
+  const newValue = value.slice(0, lineStart) + newBlock + value.slice(lineEnd);
+  onChange(newValue);
+  const newEnd = lineStart + newBlock.length;
+  window.setTimeout(() => {
+    textarea.selectionStart = lineStart;
+    textarea.selectionEnd = newEnd;
+  }, 0);
+}
+
 function CssEditor(props: {
   value: string;
   onChange: (v: string) => void;
@@ -4428,6 +4838,13 @@ function CssEditor(props: {
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Ctrl+/ — toggle comments on the selected line(s).
+    if ((e.ctrlKey || e.metaKey) && e.key === "/") {
+      e.preventDefault();
+      applyCommentToggle(e.currentTarget, props.value, "block", props.onChange);
+      return;
+    }
+
     // Autocomplete navigation takes precedence
     if (acState) {
       switch (e.key) {
@@ -4999,6 +5416,13 @@ function CssBareEditor(props: {
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Ctrl+/ — toggle comments on the selected line(s).
+    if ((e.ctrlKey || e.metaKey) && e.key === "/") {
+      e.preventDefault();
+      applyCommentToggle(e.currentTarget, props.value, "block", props.onChange);
+      return;
+    }
+
     // Autocomplete navigation takes precedence
     if (acState) {
       switch (e.key) {
@@ -5236,6 +5660,12 @@ function JsEditor(props: { value: string; onChange: (v: string) => void }) {
   const lines = props.value.split("\n");
   const lineCount = Math.max(lines.length, 8);
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Ctrl+/ — toggle `//` line comments on the selected line(s).
+    if ((e.ctrlKey || e.metaKey) && e.key === "/") {
+      e.preventDefault();
+      applyCommentToggle(e.currentTarget, props.value, "line", props.onChange);
+      return;
+    }
     // Tab inserts a literal tab (or 2 spaces); avoid losing focus.
     if (e.key === "Tab") {
       e.preventDefault();
@@ -5652,6 +6082,87 @@ function VariablesModal(props: {
   );
 }
 
+function ModuleRegisterModal(props: {
+  tagLabel: string;
+  defaultFileBase: string;
+  existingFiles: string[];
+  onClose: () => void;
+  onSubmit: (moduleName: string, fileBase: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [fileBase, setFileBase] = useState(props.defaultFileBase);
+
+  function submit() {
+    const n = name.trim();
+    if (!n) return;
+    props.onSubmit(n, fileBase.trim() || props.defaultFileBase);
+  }
+
+  return (
+    <div className="modal-bg" onClick={props.onClose}>
+      <div
+        className="modal module-register-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <span>{t("Register as module")}</span>
+          <button onClick={props.onClose}>×</button>
+        </div>
+        <div className="module-register-body">
+          <div className="module-register-help">
+            {t("Saves")} <code>&lt;{props.tagLabel}&gt;</code>{" "}
+            {t(
+              "and everything under it (CSS + SCRIPT + children) as a reusable module. Type .name in the tree to expand it."
+            )}
+          </div>
+          <label className="module-register-field">
+            <span>{t("Module name")}</span>
+            <div className="module-register-input">
+              <span className="module-register-dot">.</span>
+              <input
+                autoFocus
+                spellCheck={false}
+                placeholder="card"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submit();
+                }}
+              />
+            </div>
+          </label>
+          <label className="module-register-field">
+            <span>{t("File name")}</span>
+            <div className="module-register-input">
+              <input
+                spellCheck={false}
+                list="module-files"
+                value={fileBase}
+                onChange={(e) => setFileBase(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submit();
+                }}
+              />
+              <span className="module-register-ext">.yaml</span>
+            </div>
+            <datalist id="module-files">
+              {props.existingFiles.map((f) => (
+                <option key={f} value={f.replace(/\.ya?ml$/i, "")} />
+              ))}
+            </datalist>
+          </label>
+        </div>
+        <div className="vars-foot">
+          <button onClick={props.onClose}>{t("Cancel")}</button>
+          <button className="primary" onClick={submit} disabled={!name.trim()}>
+            {t("Register")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PluginsModal(props: {
   plugins: LoadedPlugin[];
   hasSelection: boolean;
@@ -6022,7 +6533,7 @@ function AboutModal(props: { onClose: () => void }) {
           </p>
           <dl className="about-meta">
             <dt>{t("License")}</dt>
-            <dd>GPL-3.0-or-later</dd>
+            <dd>AGPL-3.0-or-later</dd>
             <dt>{t("Built with")}</dt>
             <dd>Tauri 2 · React · TypeScript · Rust</dd>
           </dl>

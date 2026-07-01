@@ -19,7 +19,7 @@ labels: bug
 
 ## 環境
 - OS:
-- Foling Editor バージョン:
+- Foling バージョン:
 
 ## 補足
 <!-- 画面下部のエラーメッセージ、DevTools コンソールの出力(CSP 違反など)、

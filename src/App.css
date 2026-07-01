@@ -1,3 +1,6 @@
+/*! SPDX-License-Identifier: AGPL-3.0-or-later
+ * Copyright (C) 2026 大松雄斗 */
+
 :root {
   --c-menu: #ff8c1a;
   --c-tree-bg: #050505;
@@ -1281,6 +1284,84 @@ select {
   background: #f7f7f7;
   border-top: 1px solid #e0e0e0;
   letter-spacing: 0.04em;
+}
+
+/* Module autocomplete: distinguish from tag completion with an accent. */
+.ac-popup-module {
+  border-color: #7a5bd0;
+}
+.ac-item-icon {
+  flex: 0 0 auto;
+  color: #7a5bd0;
+  font-size: 11px;
+}
+.ac-item.selected .ac-item-icon {
+  color: #fff;
+}
+
+/* ===== Register-as-module modal ===== */
+.module-register-modal {
+  width: 460px;
+  max-width: 92vw;
+}
+.module-register-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.module-register-help {
+  font-size: 12px;
+  color: #555;
+  line-height: 1.5;
+}
+.module-register-help code {
+  font-family: var(--font-mono);
+  background: #f0f0f0;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.module-register-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.module-register-field > span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #444;
+  letter-spacing: 0.03em;
+}
+.module-register-input {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid #c0c0c0;
+  border-radius: 4px;
+  padding: 0 8px;
+  background: #fff;
+}
+.module-register-input:focus-within {
+  border-color: #7a5bd0;
+}
+.module-register-input input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 7px 2px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: transparent;
+}
+.module-register-dot {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #7a5bd0;
+}
+.module-register-ext {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #999;
 }
 
 /* ========== JS Editor (full-pane tab) ========== */
@@ -2643,7 +2724,7 @@ button.secondary {
   --editor-sel: rgba(120, 160, 255, 0.30);
   --editor-font-size: 14px;
   --syn-plain: #d4d4d4;
-  --syn-comment: #6a9955;
+  --syn-comment: #7f8a99;
   --syn-string: #ce9178;
   --syn-number: #b5cea8;
   --syn-keyword: #569cd6;
@@ -2662,7 +2743,7 @@ button.secondary {
   --editor-gutter: #b0b3b8;
   --editor-sel: rgba(50, 110, 220, 0.20);
   --syn-plain: #1f1f1f;
-  --syn-comment: #008000;
+  --syn-comment: #8b93a1;
   --syn-string: #a31515;
   --syn-number: #098658;
   --syn-keyword: #0000ff;
@@ -2681,7 +2762,7 @@ button.secondary {
   --editor-gutter: #75715e;
   --editor-sel: rgba(120, 120, 110, 0.40);
   --syn-plain: #f8f8f2;
-  --syn-comment: #75715e;
+  --syn-comment: #8a8676;
   --syn-string: #e6db74;
   --syn-number: #ae81ff;
   --syn-keyword: #f92672;

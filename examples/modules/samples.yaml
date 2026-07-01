@@ -1,0 +1,274 @@
+# Foling sample modules — drawermenu / slider / modal
+# Import via FILE → Import module file..., then type `.drawermenu`, `.slider`
+# or `.modal` in the tree to expand a component (self-contained CSS + SCRIPT).
+- name: drawermenu
+  snapshot:
+    name: 01_div
+    config:
+      classes:
+        - drawer
+      js: |-
+        var toggle = el.querySelector('.drawer-toggle');
+        var closeBtn = el.querySelector('.drawer-close');
+        var overlay = el.querySelector('.drawer-overlay');
+        function openDrawer() { el.classList.add('is-open'); }
+        function closeDrawer() { el.classList.remove('is-open'); }
+        if (toggle) toggle.addEventListener('click', openDrawer);
+        if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+        if (overlay) overlay.addEventListener('click', closeDrawer);
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
+    children:
+      - name: 01_button
+        config:
+          classes:
+            - drawer-toggle
+          attributes:
+            type: button
+            aria-label: Open menu
+          content: "☰"
+        children: []
+      - name: 02_div
+        config:
+          classes:
+            - drawer-overlay
+        children: []
+      - name: 03_aside
+        config:
+          classes:
+            - drawer-panel
+        children:
+          - name: 01_button
+            config:
+              classes:
+                - drawer-close
+              attributes:
+                type: button
+                aria-label: Close menu
+              content: "×"
+            children: []
+          - name: 02_nav
+            config:
+              classes:
+                - drawer-nav
+            children:
+              - name: 01_a
+                config:
+                  classes:
+                    - drawer-link
+                  attributes:
+                    href: "#"
+                  content: Home
+                children: []
+              - name: 02_a
+                config:
+                  classes:
+                    - drawer-link
+                  attributes:
+                    href: "#"
+                  content: About
+                children: []
+              - name: 03_a
+                config:
+                  classes:
+                    - drawer-link
+                  attributes:
+                    href: "#"
+                  content: Services
+                children: []
+              - name: 04_a
+                config:
+                  classes:
+                    - drawer-link
+                  attributes:
+                    href: "#"
+                  content: Contact
+                children: []
+  css: |-
+    .drawer { position: relative; display: inline-block; }
+    .drawer-toggle { font-size: 24px; line-height: 1; padding: 8px 12px; background: #222; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    .drawer-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); opacity: 0; visibility: hidden; transition: opacity 0.25s ease; z-index: 1000; }
+    .drawer.is-open .drawer-overlay { opacity: 1; visibility: visible; }
+    .drawer-panel { position: fixed; top: 0; left: 0; height: 100%; width: 280px; max-width: 80vw; background: #1b1f24; color: #f5f5f5; transform: translateX(-100%); transition: transform 0.28s ease; z-index: 1001; display: flex; flex-direction: column; padding: 16px; box-shadow: 2px 0 24px rgba(0, 0, 0, 0.4); }
+    .drawer.is-open .drawer-panel { transform: translateX(0); }
+    .drawer-close { align-self: flex-end; font-size: 26px; line-height: 1; background: none; border: none; color: #f5f5f5; cursor: pointer; }
+    .drawer-nav { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+    .drawer-link { color: #f5f5f5; text-decoration: none; padding: 12px 8px; border-radius: 6px; transition: background 0.15s ease; }
+    .drawer-link:hover { background: rgba(255, 255, 255, 0.08); }
+- name: slider
+  snapshot:
+    name: 01_div
+    config:
+      classes:
+        - slider
+      js: |-
+        var track = el.querySelector('.slider-track');
+        var slides = el.querySelectorAll('.slide');
+        var dots = el.querySelectorAll('.slider-dot');
+        var i = 0;
+        function go(n) {
+          i = (n + slides.length) % slides.length;
+          if (track) track.style.transform = 'translateX(' + (-i * 100) + '%)';
+          for (var d = 0; d < dots.length; d++) dots[d].classList.toggle('is-active', d === i);
+        }
+        var prev = el.querySelector('.slider-prev');
+        var next = el.querySelector('.slider-next');
+        if (prev) prev.addEventListener('click', function () { go(i - 1); });
+        if (next) next.addEventListener('click', function () { go(i + 1); });
+        for (var d = 0; d < dots.length; d++) (function (d) { dots[d].addEventListener('click', function () { go(d); }); })(d);
+        go(0);
+    children:
+      - name: 01_div
+        config:
+          classes:
+            - slider-viewport
+        children:
+          - name: 01_div
+            config:
+              classes:
+                - slider-track
+            children:
+              - name: 01_div
+                config:
+                  classes:
+                    - slide
+                  css: "background: linear-gradient(135deg, #667eea, #764ba2);"
+                  content: Slide 1
+                children: []
+              - name: 02_div
+                config:
+                  classes:
+                    - slide
+                  css: "background: linear-gradient(135deg, #11998e, #38ef7d);"
+                  content: Slide 2
+                children: []
+              - name: 03_div
+                config:
+                  classes:
+                    - slide
+                  css: "background: linear-gradient(135deg, #ee0979, #ff6a00);"
+                  content: Slide 3
+                children: []
+      - name: 02_button
+        config:
+          classes:
+            - slider-prev
+          attributes:
+            type: button
+            aria-label: Previous slide
+          content: "‹"
+        children: []
+      - name: 03_button
+        config:
+          classes:
+            - slider-next
+          attributes:
+            type: button
+            aria-label: Next slide
+          content: "›"
+        children: []
+      - name: 04_div
+        config:
+          classes:
+            - slider-dots
+        children:
+          - name: 01_button
+            config:
+              classes:
+                - slider-dot
+              attributes:
+                type: button
+                aria-label: Go to slide 1
+            children: []
+          - name: 02_button
+            config:
+              classes:
+                - slider-dot
+              attributes:
+                type: button
+                aria-label: Go to slide 2
+            children: []
+          - name: 03_button
+            config:
+              classes:
+                - slider-dot
+              attributes:
+                type: button
+                aria-label: Go to slide 3
+            children: []
+  css: |-
+    .slider { position: relative; max-width: 600px; margin: 0 auto; }
+    .slider-viewport { overflow: hidden; border-radius: 12px; }
+    .slider-track { display: flex; transition: transform 0.35s ease; }
+    .slide { flex: 0 0 100%; height: 280px; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: #fff; }
+    .slider-prev, .slider-next { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.5); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 22px; line-height: 1; cursor: pointer; }
+    .slider-prev { left: 10px; }
+    .slider-next { right: 10px; }
+    .slider-dots { display: flex; justify-content: center; gap: 8px; margin-top: 12px; }
+    .slider-dot { width: 10px; height: 10px; padding: 0; border-radius: 50%; border: none; background: #ccc; cursor: pointer; }
+    .slider-dot.is-active { background: #333; }
+- name: modal
+  snapshot:
+    name: 01_div
+    config:
+      classes:
+        - modal-root
+      js: |-
+        var openBtn = el.querySelector('.modal-open');
+        var backdrop = el.querySelector('.modal-backdrop');
+        var closeBtn = el.querySelector('.modal-close');
+        function openModal() { el.classList.add('is-open'); }
+        function closeModal() { el.classList.remove('is-open'); }
+        if (openBtn) openBtn.addEventListener('click', openModal);
+        if (closeBtn) closeBtn.addEventListener('click', closeModal);
+        if (backdrop) backdrop.addEventListener('click', function (e) { if (e.target === backdrop) closeModal(); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+    children:
+      - name: 01_button
+        config:
+          classes:
+            - modal-open
+          attributes:
+            type: button
+          content: Open modal
+        children: []
+      - name: 02_div
+        config:
+          classes:
+            - modal-backdrop
+        children:
+          - name: 01_div
+            config:
+              classes:
+                - modal-box
+            children:
+              - name: 01_button
+                config:
+                  classes:
+                    - modal-close
+                  attributes:
+                    type: button
+                    aria-label: Close
+                  content: "×"
+                children: []
+              - name: 02_h2
+                config:
+                  classes:
+                    - modal-title
+                  content: Modal title
+                children: []
+              - name: 03_p
+                config:
+                  classes:
+                    - modal-text
+                  content: This is a sample modal dialog. Click the backdrop, the close button, or press Esc to close it.
+                children: []
+  css: |-
+    .modal-root { display: inline-block; }
+    .modal-open { padding: 10px 18px; background: #4a6cf7; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.2s ease; z-index: 1000; }
+    .modal-root.is-open .modal-backdrop { opacity: 1; visibility: visible; }
+    .modal-box { position: relative; background: #fff; color: #222; width: 420px; max-width: 90vw; padding: 28px; border-radius: 14px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35); transform: translateY(12px) scale(0.98); transition: transform 0.2s ease; }
+    .modal-root.is-open .modal-box { transform: translateY(0) scale(1); }
+    .modal-close { position: absolute; top: 12px; right: 14px; font-size: 24px; line-height: 1; background: none; border: none; color: #888; cursor: pointer; }
+    .modal-title { margin: 0 0 10px; font-size: 22px; }
+    .modal-text { margin: 0; line-height: 1.6; color: #555; }

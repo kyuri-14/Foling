@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 大松雄斗
+
 // Pure tree-model helpers for the row-based DOM tree editor.
 //
 // These functions have no React or Tauri dependencies, which keeps them unit

@@ -1,10 +1,14 @@
 # コントリビューションガイド
 
-Foling Editor への貢献をありがとうございます。
+Foling への貢献をありがとうございます。
+参加にあたっては [行動規範](CODE_OF_CONDUCT.md) の遵守をお願いします。
+セキュリティ上の問題は公開 Issue ではなく [SECURITY.md](SECURITY.md) の手順で報告してください。
 
 ## 開発環境
 
-- Node.js 18+
+- Node.js **24.18.0 以上を推奨**（リポジトリの `.node-version` で指定）。
+  ※ Node 24.12.0 (Windows) はネイティブ再帰削除のバグで `vite build` が落ちるため回避推奨。
+  ビルドは `scripts/clean-dist.mjs` で回避策を入れていますが、更新版の Node を推奨します。
 - Rust (stable)
 - Tauri 2 の前提条件(Windows: Microsoft Edge WebView2 Runtime)
 
@@ -45,4 +49,4 @@ cd src-tauri && cargo check      # Rust のコンパイルチェック
 
 ## ライセンス
 
-貢献いただいたコードは本プロジェクトと同じ **GPL-3.0-or-later** で配布されます。
+貢献いただいたコードは本プロジェクトと同じ **AGPL-3.0-or-later** で配布されます（inbound = outbound）。

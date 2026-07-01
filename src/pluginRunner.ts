@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 大松雄斗
+
 // Runs a plugin exporter's JS inside a module Web Worker.
 //
 // The worker has no DOM access and no Tauri `invoke` binding, so a plugin

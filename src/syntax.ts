@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 大松雄斗
+
 // Tiny syntax highlighter for the code editors (CSS / JS). It turns source
 // text into HTML where each token is wrapped in <span class="syn-…">, so an
 // overlay <pre> can render colors behind a transparent <textarea>. Colors come

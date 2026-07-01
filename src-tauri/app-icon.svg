@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Square icon source for `tauri icon`, adapted from Downloads/FolingLogo.svg.
+     Original art is A4-portrait (viewBox 0 0 2481 3508); here it is re-framed to
+     a centered square viewBox around the mark's bounding box, on a dark rounded
+     tile (so the thin cyan strokes stay legible at small sizes). Regenerate with:
+       npm run tauri icon src-tauri/app-icon.svg -->
+<svg width="1024" height="1024" viewBox="-170 -61 2820 2820" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <rect x="-170" y="-61" width="2820" height="2820" rx="470" style="fill:rgb(27,31,36);"/>
+    <g transform="matrix(0.707107,0.707107,-0.707107,0.707107,2048.52033,-784.424895)">
+        <path d="M673.213,1290.073L1725.887,1290.073" style="fill:none;stroke:rgb(0,255,255);stroke-width:44px;"/>
+    </g>
+    <g transform="matrix(-0.707107,0.707107,-0.707107,-0.707107,3000.586678,1040.013825)">
+        <path d="M673.213,1290.073L1725.887,1290.073" style="fill:none;stroke:rgb(0,255,255);stroke-width:44px;"/>
+    </g>
+    <g transform="matrix(-0.707107,0.707107,-0.707107,-0.707107,2256.23335,1784.367153)">
+        <path d="M673.213,1290.073L1725.887,1290.073" style="fill:none;stroke:rgb(0,255,255);stroke-width:44px;"/>
+    </g>
+    <g transform="matrix(0.707107,0.707107,-0.707107,0.707107,1304.167003,-40.071567)">
+        <path d="M673.213,1290.073L1725.887,1290.073" style="fill:none;stroke:rgb(0,255,255);stroke-width:44px;"/>
+    </g>
+    <g transform="matrix(1,0,0,1,1046.99335,-223.197404)">
+        <circle cx="565.341" cy="827.025" r="88" style="fill:rgb(0,255,255);"/>
+    </g>
+    <g transform="matrix(1,0,0,1,302.640023,521.155924)">
+        <circle cx="565.341" cy="827.025" r="88" style="fill:rgb(0,255,255);"/>
+    </g>
+    <g transform="matrix(1,0,0,1,-441.713305,1266.930553)">
+        <circle cx="565.341" cy="827.025" r="88" style="fill:rgb(0,255,255);"/>
+    </g>
+    <g transform="matrix(1,0,0,1,1791.346678,521.155924)">
+        <circle cx="565.341" cy="827.025" r="88" style="fill:rgb(0,255,255);"/>
+    </g>
+    <g transform="matrix(1,0,0,1,1045.572048,1266.930553)">
+        <circle cx="565.341" cy="827.025" r="88" style="fill:rgb(0,255,255);"/>
+    </g>
+</svg>

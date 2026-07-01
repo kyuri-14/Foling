@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 大松雄斗
+
 export interface TreeNode {
   name: string;
   display_name: string;
@@ -62,6 +65,21 @@ export interface NodeSnapshot {
 export interface ClassFile {
   name: string;
   content: string;
+}
+
+// A reusable component captured from the tree: a subtree (DOM + per-element
+// css/js/classes/content) plus the class definitions it references, bundled
+// so it can be expanded into any project. See modules/ + read_modules.
+export interface ModuleDef {
+  name: string;
+  snapshot: NodeSnapshot;
+  /** Bundled `.class { ... }` definitions used by the subtree (CSS text). */
+  css: string;
+}
+
+export interface ModuleFile {
+  name: string;
+  modules: ModuleDef[];
 }
 
 export interface ImageFolder {
