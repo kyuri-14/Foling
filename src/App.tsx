@@ -3,6 +3,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { check as checkUpdate } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { t, setLocaleDict, useLocaleVersion } from "./i18n";
 import { ja } from "./locales/ja";
 import changelogText from "../CHANGELOG.md?raw";
@@ -1875,6 +1877,30 @@ export default function App() {
     setModuleFiles(mf);
   }
 
+  // HELP → Check for updates. Uses the Tauri updater plugin against the
+  // signed artifacts published to GitHub Releases (see tauri.conf.json).
+  async function checkForUpdate() {
+    try {
+      setInfo(t("Checking for updates..."));
+      const update = await checkUpdate();
+      if (!update) {
+        setInfo(t("You are on the latest version."));
+        return;
+      }
+      const ok = window.confirm(
+        `${t("A new version is available:")} ${update.version}\n\n` +
+          (update.body ? update.body + "\n\n" : "") +
+          t("Download and install now? The app will restart.")
+      );
+      if (!ok) return;
+      setInfo(t("Downloading and installing the update..."));
+      await update.downloadAndInstall();
+      await relaunch();
+    } catch (e) {
+      setError(`${t("Update check failed:")} ${String(e)}`);
+    }
+  }
+
   async function reloadImageFolders() {
     if (!projectRoot) return;
     const imgs = await readImageFolders(projectRoot);
@@ -3176,6 +3202,7 @@ export default function App() {
         onOpenSettings={() => setShowSettings(true)}
         onOpenShortcuts={() => setShowShortcuts(true)}
         onOpenAbout={() => setShowAbout(true)}
+        onCheckUpdate={checkForUpdate}
         onOpenChangelog={() => setShowChangelog(true)}
         onOpenSearch={() => setShowSearch(true)}
         hasProject={!!projectRoot}
@@ -3442,6 +3469,7 @@ function MenuBar(props: {
   onOpenSettings: () => void;
   onOpenShortcuts: () => void;
   onOpenAbout: () => void;
+  onCheckUpdate: () => void;
   onOpenChangelog: () => void;
   onOpenSearch: () => void;
   onEditHeadDefault: () => void;
@@ -3605,6 +3633,9 @@ function MenuBar(props: {
         </MenuOption>
         <MenuOption onClick={props.onOpenChangelog}>
           {t("Changelog...")}
+        </MenuOption>
+        <MenuOption onClick={props.onCheckUpdate}>
+          {t("Check for updates...")}
         </MenuOption>
         <MenuOption onClick={props.onOpenAbout}>{t("About Foling...")}</MenuOption>
       </MenuItem>

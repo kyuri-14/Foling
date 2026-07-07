@@ -51,11 +51,15 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Code signing / notarization secrets go here when available, e.g.:
-          # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # Update-signing key for the Tauri updater (NOT OS code signing).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # OS code signing / notarization secrets go here when a certificate
+          # is available (Windows: certificate; macOS: Apple ID + team).
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Foling ${{ github.ref_name }}"
           releaseBody: "See CHANGELOG.md for details."
           releaseDraft: true
           prerelease: false
+          includeUpdaterJson: true

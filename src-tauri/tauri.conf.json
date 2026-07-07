@@ -25,6 +25,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -33,5 +34,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/kyuri-14/Foling/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhDQUFDRjhGNzg2OEVFRjcKUldUMzdtaDRqOCtxak1CUUdjNUFGTDdXWXlnUjhSdU03NnQyMUw1c2IvWEdvTTNxS0xQRDlrVzkK"
+    }
   }
 }

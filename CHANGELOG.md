@@ -7,6 +7,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Auto-update** via the Tauri updater plugin (**HELP → Check for updates...**).
+  Releases publish signed updater artifacts + `latest.json` to GitHub Releases;
+  the app verifies the signature against its embedded public key before
+  installing and restarting. (Update-signing is separate from OS code signing,
+  which is still pending a certificate.)
 - **`CODE_OF_CONDUCT.md`** (Contributor Covenant 2.1) and **`SECURITY.md`**
   (vulnerability-reporting policy + the app's known security characteristics).
 - **`THIRD-PARTY-NOTICES.md`** — attribution for all bundled dependencies

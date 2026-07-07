@@ -41,7 +41,18 @@ export const ja: LocaleDict = {
   "Reload plugins": "プラグインを再読み込み",
   "Keyboard shortcuts...": "キーボードショートカット...",
   "Changelog...": "変更履歴...",
+  "Check for updates...": "アップデートを確認...",
   "About Foling...": "Foling について...",
+
+  // Updater
+  "Checking for updates...": "アップデートを確認しています...",
+  "You are on the latest version.": "最新バージョンです。",
+  "A new version is available:": "新しいバージョンがあります:",
+  "Download and install now? The app will restart.":
+    "今すぐダウンロードしてインストールしますか？ アプリは再起動します。",
+  "Downloading and installing the update...":
+    "アップデートをダウンロード・インストールしています...",
+  "Update check failed:": "アップデートの確認に失敗しました:",
 
   // Editor tabs / panel
   CSS: "CSS",
