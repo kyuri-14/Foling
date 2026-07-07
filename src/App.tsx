@@ -83,7 +83,7 @@ const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
 // Keep in sync with package.json / tauri.conf.json on release.
 const APP_VERSION = "0.10.0";
 // Set to the public repository URL once published (shown in the About dialog).
-const REPO_URL = "";
+const REPO_URL = "https://github.com/kyuri-14/Foling";
 
 // Apply the saved UI language as early as possible so the first render is
 // already localized. English is the default (no pack).
