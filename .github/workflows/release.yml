@@ -16,8 +16,12 @@ jobs:
       matrix:
         include:
           - platform: windows-latest
+            args: ""
+          # Universal binary → runs natively on both Apple Silicon and Intel.
           - platform: macos-latest
+            args: "--target universal-apple-darwin"
           - platform: ubuntu-latest
+            args: ""
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +45,10 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: Add macOS x86_64 target (for the universal binary)
+        if: matrix.platform == 'macos-latest'
+        run: rustup target add x86_64-apple-darwin
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
@@ -63,3 +71,4 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
+          args: ${{ matrix.args }}
