@@ -39,6 +39,17 @@ export const ja: LocaleDict = {
   PLUGINS: "プラグイン",
   "Manage plugins...": "プラグイン管理...",
   "Reload plugins": "プラグインを再読み込み",
+
+  // AI agents (PLUGINS menu)
+  "Open {label} here...": "{label} をここで開く...",
+  "Reload tree (after external edits)": "ツリーを再読み込み (外部編集後)",
+  "Open a terminal in the project folder and run this command?":
+    "プロジェクトフォルダでターミナルを開き、次のコマンドを実行しますか？",
+  "The agent edits the project files directly. When it is done, use PLUGINS → Reload tree to pick up the changes.":
+    "エージェントはプロジェクトのファイルを直接編集します。完了したら「プラグイン → ツリーを再読み込み」で変更を取り込んでください。",
+  "launched in a terminal. Reload the tree after it edits the project.":
+    "ターミナルで起動しました。編集が終わったらツリーを再読み込みしてください。",
+  "Tree reloaded from disk": "ディスクからツリーを再読み込みしました",
   "Keyboard shortcuts...": "キーボードショートカット...",
   "Changelog...": "変更履歴...",
   "Check for updates...": "アップデートを確認...",

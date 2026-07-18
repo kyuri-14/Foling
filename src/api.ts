@@ -153,6 +153,10 @@ export async function pickSaveTarget(
 export const openInBrowser = (url: string, browserPath: string | null) =>
   invoke<void>("open_in_browser", { url, browserPath });
 
+// Open the OS terminal in `dir` and run `command` (AI agent CLI hand-off).
+export const openTerminal = (dir: string, command: string) =>
+  invoke<void>("open_terminal", { dir, command });
+
 // Picks an executable file (browser .exe / .app). Reuses the dialog plugin.
 export async function pickBrowserExecutable(): Promise<string | null> {
   const sel = await open({

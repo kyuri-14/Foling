@@ -105,6 +105,16 @@ export interface SnippetEntry {
   body: string;
 }
 
+// An AI agent CLI a plugin makes launchable from the PLUGINS menu. `command`
+// runs in the OS terminal with the project folder as cwd (confirmed by the
+// user first). HTFL is plain folders + YAML, so file-editing agents such as
+// Claude Code / Codex can work on the project directly.
+export interface AgentDef {
+  id: string;
+  label: string;
+  command: string;
+}
+
 export interface PluginManifest {
   name: string;
   version?: string;
@@ -112,6 +122,7 @@ export interface PluginManifest {
   exporters?: ExporterDef[];
   classes?: ClassDictEntry[];
   snippets?: SnippetEntry[];
+  agents?: AgentDef[];
 }
 
 export interface LoadedPlugin {

@@ -21,6 +21,7 @@ import {
   exportHtml,
   importHtml,
   openInBrowser,
+  openTerminal,
   pickBrowserExecutable,
   pickHtmlFile,
   pickHtmlSaveTarget,
@@ -57,6 +58,7 @@ import {
 } from "./treeModel";
 import { highlight } from "./syntax";
 import {
+  AgentDef,
   ClassFile,
   ExporterDef,
   ImageFolder,
@@ -74,6 +76,15 @@ import {
 } from "./types";
 
 type TabKey = "css" | "js" | "classes";
+
+// AI agent CLIs launchable out of the box (PLUGINS menu). Each runs in the
+// OS terminal with the project folder as cwd — HTFL is plain folders + YAML,
+// so file-editing agents can modify the project directly; the user then
+// reloads the tree. Plugins can add more via `agents:` in plugin.yaml.
+const BUILTIN_AGENTS: AgentDef[] = [
+  { id: "claude", label: "Claude Code", command: "claude" },
+  { id: "codex", label: "Codex CLI", command: "codex" },
+];
 
 const LAST_PROJECT_KEY = "foling.lastProject";
 const BROWSER_KEY = "foling.previewBrowser";
@@ -1891,6 +1902,45 @@ export default function App() {
     setModuleFiles(mf);
   }
 
+  // PLUGINS → AI: open an agent CLI (Claude Code / Codex / plugin-defined)
+  // in the OS terminal with the project folder as cwd. The exact command is
+  // shown in a confirm dialog first — plugin manifests can define arbitrary
+  // commands, so the user must always see what will run.
+  async function runAgentCli(agent: AgentDef) {
+    if (!projectRoot) return;
+    const ok = window.confirm(
+      `${t("Open a terminal in the project folder and run this command?")}\n\n` +
+        `  ${agent.command}\n\n` +
+        t(
+          "The agent edits the project files directly. When it is done, use PLUGINS → Reload tree to pick up the changes."
+        )
+    );
+    if (!ok) return;
+    try {
+      await openTerminal(projectRoot, agent.command);
+      setInfo(
+        `${agent.label}: ${t("launched in a terminal. Reload the tree after it edits the project.")}`
+      );
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  // PLUGINS → Reload tree: re-read the project from disk after an external
+  // tool (AI agent, editor, git) modified it.
+  async function reloadTreeFromDisk() {
+    if (!projectRoot) return;
+    try {
+      await refreshTree();
+      await reloadClassFiles();
+      await reloadModules();
+      scheduleRebuild();
+      setInfo(t("Tree reloaded from disk"));
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   // HELP → Check for updates. Uses the Tauri updater plugin against the
   // signed artifacts published to GitHub Releases (see tauri.conf.json).
   async function checkForUpdate() {
@@ -3207,6 +3257,12 @@ export default function App() {
         onOpenPlugins={() => setShowPluginsModal(true)}
         onReloadPlugins={reloadPlugins}
         onRunExporter={runPluginExporter}
+        agents={[
+          ...BUILTIN_AGENTS,
+          ...plugins.flatMap((p) => p.manifest.agents ?? []),
+        ]}
+        onRunAgent={runAgentCli}
+        onReloadTree={reloadTreeFromDisk}
         canEdit={!!selectedPath}
         canSave={!!selectedPath && dirty}
         canUndo={undoStack.length > 0}
@@ -3480,6 +3536,10 @@ function MenuBar(props: {
   onOpenPlugins: () => void;
   onReloadPlugins: () => void;
   onRunExporter: (plugin: LoadedPlugin, exp: ExporterDef) => void;
+  /** Built-in + plugin-defined AI agent CLIs (PLUGINS menu → AI section). */
+  agents: AgentDef[];
+  onRunAgent: (agent: AgentDef) => void;
+  onReloadTree: () => void;
   onOpenSettings: () => void;
   onOpenShortcuts: () => void;
   onOpenAbout: () => void;
@@ -3634,6 +3694,20 @@ function MenuBar(props: {
             </MenuOption>
           ))
         )}
+        <div className="menu-divider" />
+        <div className="menu-section-label">AI</div>
+        {props.agents.map((a, i) => (
+          <MenuOption
+            key={`agent:${i}:${a.id}`}
+            onClick={() => props.onRunAgent(a)}
+            disabled={!props.hasProject}
+          >
+            {t("Open {label} here...").replace("{label}", a.label)}
+          </MenuOption>
+        ))}
+        <MenuOption onClick={props.onReloadTree} disabled={!props.hasProject}>
+          {t("Reload tree (after external edits)")}
+        </MenuOption>
       </MenuItem>
       <MenuItem
         label={t("HELP")}

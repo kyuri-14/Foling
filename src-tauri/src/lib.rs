@@ -385,6 +385,17 @@ pub struct SnippetEntry {
     pub body: String,
 }
 
+/// An AI agent CLI a plugin makes launchable from the PLUGINS menu.
+/// `command` is run in the OS terminal with the project folder as cwd
+/// (e.g. "claude", "codex", "aider --model …"). The user confirms the exact
+/// command in the UI before it is launched.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AgentDef {
+    pub id: String,
+    pub label: String,
+    pub command: String,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PluginManifest {
     pub name: String,
@@ -398,6 +409,8 @@ pub struct PluginManifest {
     pub classes: Vec<ClassDictEntry>,
     #[serde(default)]
     pub snippets: Vec<SnippetEntry>,
+    #[serde(default)]
+    pub agents: Vec<AgentDef>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1809,6 +1822,103 @@ fn open_in_browser(url: String, browser_path: Option<String>) -> Result<(), Stri
     Ok(())
 }
 
+/// Open the OS terminal in `dir` and run `command` inside it. Used to hand
+/// the project folder to an AI agent CLI (Claude Code, Codex, …): HTFL is
+/// plain folders + YAML, so a file-editing agent can work on the project
+/// directly and the user just reloads the tree afterwards.
+///
+/// `command` comes from a built-in preset or a plugin manifest and the UI
+/// shows it in a confirm dialog before calling this, so the user always sees
+/// exactly what will run.
+#[tauri::command]
+fn open_terminal(dir: String, command: String) -> Result<(), String> {
+    let d = PathBuf::from(&dir);
+    if !d.is_dir() {
+        return Err("プロジェクトフォルダが見つかりません".into());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+        // `/K` keeps the console open after the command exits so the user can
+        // read the agent's final output.
+        std::process::Command::new("cmd")
+            .args(["/K", &command])
+            .current_dir(&d)
+            .creation_flags(CREATE_NEW_CONSOLE)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // Terminal.app via AppleScript. The shell line single-quotes the
+        // directory (with '\'' escaping); the whole line is then escaped for
+        // the AppleScript string literal (backslash and double-quote).
+        let dir_sh = format!("'{}'", dir.replace('\'', r"'\''"));
+        let shell_line = format!("cd {} && {}", dir_sh, command);
+        let script_line = shell_line.replace('\\', r"\\").replace('"', "\\\"");
+        let script = format!(
+            "tell application \"Terminal\"\nactivate\ndo script \"{}\"\nend tell",
+            script_line
+        );
+        std::process::Command::new("osascript")
+            .args(["-e", &script])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        // Best-effort: try common terminal emulators until one launches.
+        // `exec bash` keeps the window open after the agent exits.
+        let keep_open = format!("{}; exec bash", command);
+        let attempts: [(&str, Vec<String>); 4] = [
+            (
+                "x-terminal-emulator",
+                vec!["-e".into(), "bash".into(), "-lc".into(), keep_open.clone()],
+            ),
+            (
+                "gnome-terminal",
+                vec![
+                    format!("--working-directory={}", dir),
+                    "--".into(),
+                    "bash".into(),
+                    "-lc".into(),
+                    keep_open.clone(),
+                ],
+            ),
+            (
+                "konsole",
+                vec![
+                    "--workdir".into(),
+                    dir.clone(),
+                    "-e".into(),
+                    "bash".into(),
+                    "-lc".into(),
+                    keep_open.clone(),
+                ],
+            ),
+            (
+                "xterm",
+                vec!["-e".into(), "bash".into(), "-lc".into(), keep_open.clone()],
+            ),
+        ];
+        for (term, args) in attempts {
+            let mut c = std::process::Command::new(term);
+            c.args(&args);
+            c.current_dir(&d);
+            if c.spawn().is_ok() {
+                return Ok(());
+            }
+        }
+        Err("ターミナルエミュレータを起動できませんでした".into())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let preview_state: Arc<PreviewState> = Arc::new(PreviewState {
@@ -1862,6 +1972,7 @@ pub fn run() {
             write_text_file,
             preview_url,
             open_in_browser,
+            open_terminal,
             poll_selection,
         ])
         .run(tauri::generate_context!())

@@ -50,6 +50,11 @@ snippets:                  # スニペット
       display: flex;
       align-items: center;
       justify-content: center;
+
+agents:                    # AI エージェント CLI
+  - id: aider              # 一意な ID
+    label: Aider           # メニュー表示名
+    command: aider         # ターミナルで実行するコマンド
 ```
 
 ### フィールド
@@ -67,6 +72,9 @@ snippets:                  # スニペット
 | `snippets[]` | `name` | スニペット名。 |
 | | `kind` | `css` または `content`(既定 `css`)。 |
 | | `body` | 挿入される本文。 |
+| `agents[]` | `id` | 一意な識別子。 |
+| | `label` | PLUGINS メニューの AI セクションに出る名前。 |
+| | `command` | OS のターミナルで、**プロジェクトフォルダを作業ディレクトリに**実行されるコマンド。実行前にユーザーへコマンド全文が確認表示されます。HTFL はフォルダ＋YAML なので、Claude Code / Codex などのファイル編集エージェントがプロジェクトを直接編集できます。編集後は「プラグイン → ツリーを再読み込み」で取り込みます。Claude Code と Codex はビルトインで登録済みです。 |
 
 ---
 

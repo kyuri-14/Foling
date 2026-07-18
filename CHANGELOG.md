@@ -7,6 +7,12 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **AI agent integration** (PLUGINS menu → AI). Launch **Claude Code** or
+  **Codex CLI** (built-in), or any agent a plugin registers via `agents:` in
+  `plugin.yaml`, in the OS terminal with the project folder as cwd — HTFL is
+  plain folders + YAML, so file-editing agents work on the project directly.
+  The exact command is confirmed before launching; **PLUGINS → Reload tree**
+  picks up the agent's edits afterwards.
 - **Auto-update** via the Tauri updater plugin (**HELP → Check for updates...**).
   Releases publish signed updater artifacts + `latest.json` to GitHub Releases;
   the app verifies the signature against its embedded public key before
