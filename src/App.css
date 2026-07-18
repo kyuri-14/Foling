@@ -2381,6 +2381,15 @@ button.secondary {
 }
 
 /* Shortcuts */
+.shortcuts-note {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #101a1e;
+  border: 1px solid #24444e;
+  color: #8fd7e4;
+  font-size: 0.82rem;
+}
 .shortcuts-body table {
   width: 100%;
   border-collapse: collapse;

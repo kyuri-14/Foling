@@ -1568,8 +1568,16 @@ export default function App() {
       }
 
       // Shift+Delete — delete the selected element (and its whole subtree).
+      // Mac laptops have no forward-Delete key (the "delete" key reports
+      // Backspace; Shift+Delete would need Fn), so Cmd+Backspace is accepted
+      // as the macOS equivalent — same idiom as deleting a file in Finder.
+      // deleteSelected() confirms before removing, so no silent data loss.
       // Leaves native cut/delete intact when typing in a real text field.
-      if (e.shiftKey && e.key === "Delete") {
+      if (
+        (e.shiftKey && e.key === "Delete") ||
+        (e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey &&
+          e.key === "Backspace")
+      ) {
         const target = e.target as HTMLElement | null;
         const tag = target?.tagName ?? "";
         const isTreeInput = !!target?.classList?.contains("tree-row-input");
@@ -1584,13 +1592,18 @@ export default function App() {
       // the selected element and focus it for immediate typing. Deliberately
       // avoids Ctrl/Cmd and Alt+digit so it won't clash with browser shortcuts
       // (tabs, address bar, etc.) in the planned web build.
+      //
+      // Compare physical keys (e.code): on macOS, Option+letter puts the
+      // TRANSFORMED character in e.key ("†", "ß", "ç", …), so key-based
+      // matching would never fire there. e.code ("KeyS" …) is position-based
+      // and identical on Windows Alt and macOS Option.
       if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        const k = e.key.toLowerCase();
+        const k = e.code;
         const focusSoon = (sel: string) =>
           window.setTimeout(() => {
             document.querySelector<HTMLTextAreaElement>(sel)?.focus();
           }, 0);
-        if (k === "t") {
+        if (k === "KeyT") {
           // Toggle the element editor (text / image). Press again to close.
           e.preventDefault();
           if (elementEdit) {
@@ -1602,25 +1615,25 @@ export default function App() {
           if (idx >= 0) openElementEditor(rows[idx], idx + 1);
           return;
         }
-        if (k === "s") {
+        if (k === "KeyS") {
           e.preventDefault();
           setActiveTab("css");
           focusSoon(".editor-area .css-textarea");
           return;
         }
-        if (k === "c") {
+        if (k === "KeyC") {
           e.preventDefault();
           setActiveTab("classes");
           focusSoon(".editor-area .css-textarea");
           return;
         }
-        if (k === "j") {
+        if (k === "KeyJ") {
           e.preventDefault();
           setActiveTab("js");
           focusSoon(".editor-area .js-fullpane-textarea");
           return;
         }
-        if (k === "r") {
+        if (k === "KeyR") {
           // RUN — open the normal preview in the browser.
           e.preventDefault();
           runBuild();
@@ -1628,13 +1641,14 @@ export default function App() {
         }
       }
 
-      // Alt+Shift+R — DEV preview (click-to-edit).
+      // Alt+Shift+R — DEV preview (click-to-edit). e.code for the same
+      // macOS Option reason as above (Option+Shift+R types "‰" into e.key).
       if (
         e.altKey &&
         e.shiftKey &&
         !e.ctrlKey &&
         !e.metaKey &&
-        e.key.toLowerCase() === "r"
+        e.code === "KeyR"
       ) {
         e.preventDefault();
         runDev();
@@ -6517,6 +6531,11 @@ function ShortcutsModal(props: { onClose: () => void }) {
           </button>
         </div>
         <div className="shortcuts-body">
+          <div className="shortcuts-note">
+            {t(
+              "macOS: Alt = Option, Ctrl = Cmd. Delete element: Cmd+Backspace."
+            )}
+          </div>
           <table>
             <tbody>
               {SHORTCUTS.map((s) => (

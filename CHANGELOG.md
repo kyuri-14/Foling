@@ -69,6 +69,13 @@ versions follow [Semantic Versioning](https://semver.org/).
   outdent is **Alt+←/→**.
 
 ### Fixed
+- **macOS keyboard support.** Alt+letter shortcuts (Alt+T/S/C/J/R,
+  Alt+Shift+R) now match the physical key (`e.code`), so they work with the
+  **Option** key on macOS — Option+letter types a transformed character
+  ("†", "ß", …) into `e.key`, which the old comparison never matched.
+  Added **Cmd+Backspace** as the macOS way to delete the selected element
+  (Mac laptops have no forward-Delete key), and a platform note in the
+  keyboard-shortcuts dialog. Ctrl-based shortcuts already accepted Cmd.
 - **Production build** (`npm run build` / `tauri build`) failing on a rebuild.
   A bug in Node 24.x on Windows makes the native recursive remove
   (`fs.rm`/`fs.rmdir` with `recursive: true`) hard-abort the process
