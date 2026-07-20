@@ -236,4 +236,27 @@ export const ja: LocaleDict = {
   "No variables yet. Use “＋ Add variable” to create one.":
     "変数がありません。「＋ 変数を追加」で 1 つ作成してください。",
   "＋ Add variable": "＋ 変数を追加",
+
+  // Window controls (title bar)
+  Minimize: "最小化",
+  Maximize: "最大化 / 元に戻す",
+
+  // MCP server
+  "Start MCP server": "MCP サーバーを起動",
+  "Stop MCP server": "MCP サーバーを停止",
+  "MCP connection info...": "MCP 接続情報...",
+  "MCP server": "MCP サーバー",
+  "MCP server stopped": "MCP サーバーを停止しました",
+  "Copied to clipboard": "クリップボードにコピーしました",
+  "Copy configuration": "設定をコピー",
+  "Lets an AI agent edit this project through Foling's own operations, so folder numbering and config validity are guaranteed by the app.":
+    "AI エージェントが Foling 自身の操作を通してこのプロジェクトを編集できるようになります。フォルダの連番や config.yaml の正しさはアプリ側が保証します。",
+  "Running editor (HTTP)": "起動中のエディタ (HTTP)",
+  "Edits made by the agent appear in the tree automatically.":
+    "エージェントの編集はツリーに自動で反映されます。",
+  "The server is stopped. Start it from PLUGINS → AI.":
+    "サーバーは停止中です。PLUGINS → AI から起動してください。",
+  "Standalone (stdio)": "単体起動 (stdio)",
+  "Works with Foling closed. Download foling-mcp from the release page, or build it with: cargo build --release --bin foling-mcp":
+    "Foling を閉じていても使えます。foling-mcp はリリースページから入手するか、cargo build --release --bin foling-mcp でビルドしてください。",
 };

@@ -1,8 +1,18 @@
 /*! SPDX-License-Identifier: AGPL-3.0-or-later
  * Copyright (C) 2026 大松雄斗 */
 
+/* Colour policy: chrome is neutral, colour is information.
+ *
+ * The frame (title bar, tab strip, panel backgrounds) is greyscale so it
+ * recedes. Hue is spent only where it tells you something — which layer a tab
+ * edits, where you are in the tree, which element is selected — and spent in
+ * small areas: a 2px underline reads as clearly as a filled tab without making
+ * the loudest thing on screen also the least informative. */
 :root {
-  --c-menu: #ff8c1a;
+  --c-chrome: #232323;
+  --c-chrome-border: #383838;
+  --c-chrome-text: #d8d8d8;
+  --c-chrome-text-strong: #ffffff;
   --c-tree-bg: #050505;
   --c-tree-text: #ffffff;
   --c-tree-selected: #3f7bb6;
@@ -12,7 +22,25 @@
   --c-tab-css: #f300d2;
   --c-tab-links: #ffb0e8;
   --c-tab-info: #c8c8c8;
-  --c-run: #ff5722;
+  /* RUN builds and previews — green because that is what a run/play control is
+   * everywhere else. The old orange read as a warning for an action that is
+   * safe and repeatable. */
+  --c-run: #1f883d;
+  --c-run-hover: #1a7f37;
+  /* DEV is a mode toggle: outlined when off, filled when on. Blue is the same
+   * "this is the active thing" role the tree selection uses. */
+  --c-dev-on: #1f6feb;
+  /* The tree paints selection as a fill on a near-black surface; on the light
+   * editor panel the same meaning has to be carried by text colour instead.
+   * Same role, two surfaces — hence two values. */
+  --c-selected-ink: #2f6ea8;
+  /* Generic primary buttons (New project, dialog confirms). Deliberately not
+   * --c-run: those are "commit to this", RUN is "build it". */
+  --c-primary: #ff5722;
+  /* The editor pane is deliberately a light "paper" surface — class cards,
+   * inherited-CSS rows and BASIN layers are all colour-coded against it. Left
+   * as is: darkening only the background would strand those on a light-on-dark
+   * mismatch. Converting the whole pane is a separate piece of design work. */
   --c-editor-bg: #f5fff7;
   --c-editor-text: #134018;
   --c-editor-gutter-text: #5e8e6a;
@@ -49,20 +77,49 @@ select {
 
 .app {
   display: grid;
-  grid-template-rows: 40px 1fr;
+  grid-template-rows: 34px 1fr;
   height: 100vh;
 }
 
-/* ========== Menu Bar ========== */
+/* ========== Title bar (doubles as the menu bar) ==========
+ * The OS frame is off (see the setup hook in src-tauri/src/lib.rs), so this row
+ * is the window's title bar: it drags the window, and on Windows/Linux it
+ * carries the buttons the OS would have drawn. On macOS the native traffic
+ * lights float over its left end, which is what .menubar-mac makes room for. */
 .menubar {
-  background: var(--c-menu);
-  color: #fff;
+  background: var(--c-chrome);
+  border-bottom: 1px solid var(--c-chrome-border);
+  color: var(--c-chrome-text);
   display: flex;
   align-items: stretch;
   padding-left: 8px;
   user-select: none;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+.menubar-mac {
+  padding-left: 78px;
+}
+
+.menubar-logo {
+  width: 17px;
+  height: 17px;
+  align-self: center;
+  margin: 0 10px 0 4px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.menubar-mac .menubar-logo {
+  display: none;
+}
+
+/* Fills the gap between the last menu and the window buttons. Purely a drag
+ * target — without it, most of the title bar would not move the window. */
+.menubar-drag {
+  flex: 1;
+  min-width: 24px;
 }
 
 .menu-item {
@@ -71,11 +128,41 @@ select {
   display: flex;
   align-items: center;
   cursor: pointer;
+  color: var(--c-chrome-text);
 }
 
 .menu-item:hover,
 .menu-item.open {
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--c-chrome-text-strong);
+}
+
+/* ========== Window controls ========== */
+.window-controls {
+  display: flex;
+  align-items: stretch;
+}
+
+.window-control {
+  width: 44px;
+  border: none;
+  background: transparent;
+  color: var(--c-chrome-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.window-control:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--c-chrome-text-strong);
+}
+
+.window-control-close:hover {
+  background: #c42b1c;
+  color: #fff;
 }
 
 .menu-dropdown {
@@ -630,80 +717,94 @@ select {
   color: #111;
 }
 
+/* The breadcrumb answers "where am I", so the answer — the selected element —
+ * is what gets the colour. Its ancestors are context and stay grey. It used to
+ * be a full-width saturated cyan fill, which made the container louder than the
+ * one word in it that actually mattered. */
 .breadcrumb {
-  background: var(--c-breadcrumb);
-  color: #003a44;
+  background: #fafafa;
+  border-bottom: 1px solid #e8e8e8;
+  color: #8a8a8a;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 0 14px;
-  font-weight: 700;
-  font-size: 14px;
+  font-weight: 400;
+  font-size: 13px;
   font-family: var(--font-mono);
   white-space: nowrap;
   overflow-x: auto;
 }
 
+.breadcrumb-sep {
+  color: #c4c4c4;
+}
+
+.breadcrumb-current {
+  color: var(--c-selected-ink);
+  font-weight: 700;
+}
+
 .breadcrumb-empty {
-  color: #003a44aa;
+  color: #a8a8a8;
   font-weight: 400;
 }
 
+/* Tabs carry their layer's colour on a 2px underline rather than as a fill.
+ * The colour still identifies the layer at a glance, but the strip reads as
+ * one surface instead of five competing blocks. */
 .tabbar {
   display: flex;
   align-items: stretch;
   background: #fff;
-  padding: 6px 14px;
-  gap: 8px;
+  border-bottom: 1px solid #e2e2e2;
+  padding: 0 10px;
+  gap: 2px;
 }
 
 .tab {
   border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
   cursor: pointer;
-  padding: 0 22px;
-  font-weight: 700;
+  padding: 0 18px;
+  font-weight: 500;
   letter-spacing: 0.06em;
-  color: #fff;
-  font-size: 16px;
-  opacity: 0.55;
-  transition: opacity 0.15s;
+  color: #8a8a8a;
+  font-size: 14px;
+  transition: color 0.15s, border-color 0.15s;
 }
 
 .tab:hover {
-  opacity: 0.85;
+  color: #444;
 }
 
 .tab.active {
-  opacity: 1;
+  color: #111;
 }
 
-.tab-css {
-  background: var(--c-tab-css);
+.tab-css.active {
+  border-bottom-color: var(--c-tab-css);
 }
 
-.tab-content {
-  background: var(--c-tab-links);
-  color: #5a005a;
+.tab-content.active {
+  border-bottom-color: var(--c-tab-links);
 }
 
-.tab-classes {
-  background: #ffc107;
-  color: #4a3300;
+.tab-classes.active {
+  border-bottom-color: #ffc107;
 }
 
-.tab-images {
-  background: #8e63ff;
-  color: #fff;
+.tab-images.active {
+  border-bottom-color: #8e63ff;
 }
 
-.tab-info {
-  background: var(--c-tab-info);
-  color: #222;
+.tab-info.active {
+  border-bottom-color: var(--c-tab-info);
 }
 
-.tab-js {
-  background: #2d2d3a;
-  color: #ffd54f;
+.tab-js.active {
+  border-bottom-color: #ffd54f;
 }
 
 .dirty-indicator {
@@ -714,41 +815,57 @@ select {
   min-width: 60px;
 }
 
+/* DEV and RUN are controls, not tabs, so they read as buttons: rounded, sized
+ * to their label, vertically centred rather than filling the strip. Previously
+ * they were full-height blocks, which made them look like two more tabs. */
+.dev-button,
+.run-button {
+  align-self: center;
+  border-radius: 6px;
+  padding: 6px 18px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+/* Off = outline, on = filled. A toggle whose two states are both filled (dark
+ * blue vs bright blue) leaves you guessing which one means "on". */
 .dev-button {
   margin-left: auto;
-  background: #1f3a5f;
-  color: #cfe6ff;
-  border: none;
-  padding: 0 18px;
-  font-weight: 800;
-  font-size: 15px;
-  cursor: pointer;
-  letter-spacing: 0.08em;
+  background: transparent;
+  color: #5f5f5f;
+  border: 1px solid #c8c8c8;
 }
 
 .dev-button:hover {
-  filter: brightness(1.2);
+  border-color: #9a9a9a;
+  color: #222;
 }
 
 .dev-button.active {
-  background: #2f7be0;
+  background: var(--c-dev-on);
+  border-color: var(--c-dev-on);
   color: #fff;
-  box-shadow: inset 0 -3px 0 #9fd0ff;
+}
+
+.dev-button.active:hover {
+  background: #1a5fd0;
+  border-color: #1a5fd0;
+  color: #fff;
 }
 
 .run-button {
+  margin-left: 8px;
   background: var(--c-run);
   color: #fff;
-  border: none;
-  padding: 0 28px;
-  font-weight: 800;
-  font-size: 16px;
-  cursor: pointer;
-  letter-spacing: 0.08em;
+  border: 1px solid transparent;
+  padding: 6px 22px;
 }
 
 .run-button:hover {
-  filter: brightness(1.1);
+  background: var(--c-run-hover);
 }
 
 .editor-area {
@@ -1586,9 +1703,9 @@ select {
 }
 
 .vars-foot button.primary {
-  background: var(--c-run);
+  background: var(--c-primary);
   color: #fff;
-  border-color: var(--c-run);
+  border-color: var(--c-primary);
 }
 
 .vars-foot button.primary:hover {
@@ -1746,7 +1863,7 @@ select {
 }
 
 button.primary {
-  background: var(--c-run);
+  background: var(--c-primary);
   color: #fff;
   border: none;
   padding: 12px 28px;
@@ -2319,6 +2436,7 @@ button.secondary {
 .settings-modal,
 .shortcuts-modal,
 .about-modal,
+.mcp-modal,
 .search-modal {
   width: min(560px, 92vw);
   max-height: 80vh;
@@ -2326,9 +2444,44 @@ button.secondary {
 .settings-body,
 .shortcuts-body,
 .about-body,
+.mcp-body,
 .search-body {
   padding: 16px 20px;
   overflow: auto;
+}
+
+/* MCP connection info */
+.mcp-intro {
+  margin: 0 0 16px;
+  font-size: 0.85rem;
+  color: #aaa;
+  line-height: 1.6;
+}
+.mcp-body h3 {
+  margin: 20px 0 6px;
+  font-size: 0.9rem;
+}
+.mcp-body h3:first-of-type {
+  margin-top: 0;
+}
+.mcp-note {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: #999;
+  line-height: 1.5;
+}
+/* The token makes these lines long; scroll the block rather than the dialog. */
+.mcp-config {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  background: #1b1b1b;
+  border: 1px solid #333;
+  border-radius: 4px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+  user-select: text;
 }
 
 /* Settings */

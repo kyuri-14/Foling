@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 大松雄斗
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -20,8 +20,11 @@ import {
   initProject,
   exportHtml,
   importHtml,
+  mcpBind,
+  mcpStatus,
   openInBrowser,
   openTerminal,
+  pollReload,
   pickBrowserExecutable,
   pickHtmlFile,
   pickHtmlSaveTarget,
@@ -44,6 +47,7 @@ import {
   writeNode,
   writeProjectConfig,
 } from "./api";
+import folingMark from "./assets/foling-mark.svg";
 import { runExporter } from "./pluginRunner";
 import {
   FlatRow,
@@ -63,6 +67,7 @@ import {
   ExporterDef,
   ImageFolder,
   LoadedPlugin,
+  McpStatus,
   ModuleDef,
   ModuleFile,
   SnippetEntry,
@@ -93,6 +98,11 @@ const LOCALE_KEY = "foling.locale";
 const EDITOR_THEME_KEY = "foling.editorTheme";
 type EditorTheme = "dark" | "light" | "monokai";
 const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
+// macOS keeps its native traffic lights over our title bar, so we neither draw
+// window buttons there nor let content sit under where they float. The webview
+// is WKWebView on macOS and reports "Macintosh" — cheaper and more reliable
+// here than pulling in the OS plugin just to answer one question.
+const IS_MAC = navigator.userAgent.includes("Macintosh");
 // Keep in sync with package.json / tauri.conf.json on release.
 const APP_VERSION = "0.11.0";
 // Set to the public repository URL once published (shown in the About dialog).
@@ -1332,6 +1342,8 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [mcp, setMcp] = useState<McpStatus | null>(null);
+  const [showMcp, setShowMcp] = useState(false);
   const [locale, setLocale] = useState<"en" | "ja">(
     () => (localStorage.getItem(LOCALE_KEY) === "ja" ? "ja" : "en")
   );
@@ -3024,6 +3036,65 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [devMode, projectRoot, tree]);
 
+  // MCP: an agent writing through the in-app server changes the project under
+  // the editor's feet, so pull the tree back in when the counter moves. Same
+  // shape as the dev-preview poll above — one interval, no event plumbing.
+  useEffect(() => {
+    if (!mcp?.enabled || !projectRoot) return;
+    let lastVer = mcp.reload_version;
+    let active = true;
+    const id = window.setInterval(async () => {
+      if (!active) return;
+      try {
+        const v = await pollReload();
+        if (v !== lastVer) {
+          lastVer = v;
+          await reloadTreeFromDisk();
+        }
+      } catch {
+        /* ignore poll errors */
+      }
+    }, 700);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mcp?.enabled, projectRoot]);
+
+  // Shutting the project (or opening another) must not leave the previous one
+  // reachable over HTTP.
+  useEffect(() => {
+    if (!mcp?.enabled) return;
+    if (mcp.project && projectRoot && mcp.project !== projectRoot) {
+      mcpBind(projectRoot).then(setMcp).catch(() => undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectRoot]);
+
+  async function toggleMcpServer() {
+    try {
+      const next = await mcpBind(mcp?.enabled ? null : projectRoot ?? null);
+      setMcp(next);
+      if (next.enabled) {
+        setShowMcp(true);
+      } else {
+        setInfo(t("MCP server stopped"));
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function openMcpPanel() {
+    try {
+      setMcp(await mcpStatus());
+      setShowMcp(true);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   // Resolve a path reported by the dev preview to a selection in the editor.
   function selectFromDev(path: string) {
     if (!tree) return;
@@ -3263,6 +3334,9 @@ export default function App() {
         ]}
         onRunAgent={runAgentCli}
         onReloadTree={reloadTreeFromDisk}
+        mcpEnabled={!!mcp?.enabled}
+        onToggleMcp={toggleMcpServer}
+        onOpenMcp={openMcpPanel}
         canEdit={!!selectedPath}
         canSave={!!selectedPath && dirty}
         canUndo={undoStack.length > 0}
@@ -3484,6 +3558,13 @@ export default function App() {
         <ShortcutsModal onClose={() => setShowShortcuts(false)} />
       )}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {showMcp && mcp && (
+        <McpModal
+          status={mcp}
+          onClose={() => setShowMcp(false)}
+          onCopied={() => setInfo(t("Copied to clipboard"))}
+        />
+      )}
       {showChangelog && (
         <ChangelogModal
           text={changelogText}
@@ -3540,6 +3621,10 @@ function MenuBar(props: {
   agents: AgentDef[];
   onRunAgent: (agent: AgentDef) => void;
   onReloadTree: () => void;
+  /** In-app MCP server (PLUGINS → AI). */
+  mcpEnabled: boolean;
+  onToggleMcp: () => void;
+  onOpenMcp: () => void;
   onOpenSettings: () => void;
   onOpenShortcuts: () => void;
   onOpenAbout: () => void;
@@ -3556,7 +3641,15 @@ function MenuBar(props: {
 }) {
   const close = () => props.setMenu(null);
   return (
-    <div className="menubar" onClick={close}>
+    <div
+      className={`menubar ${IS_MAC ? "menubar-mac" : ""}`}
+      onClick={close}
+      // Everything that isn't a menu or a button drags the window. Tauri reads
+      // this attribute directly; the menu items stop propagation themselves, so
+      // clicking FILE never starts a drag.
+      data-tauri-drag-region
+    >
+      <img className="menubar-logo" src={folingMark} alt="" aria-hidden="true" />
       <MenuItem
         label={t("FILE")}
         open={props.menu === "file"}
@@ -3708,6 +3801,12 @@ function MenuBar(props: {
         <MenuOption onClick={props.onReloadTree} disabled={!props.hasProject}>
           {t("Reload tree (after external edits)")}
         </MenuOption>
+        <MenuOption onClick={props.onToggleMcp} disabled={!props.hasProject}>
+          {props.mcpEnabled ? t("Stop MCP server") : t("Start MCP server")}
+        </MenuOption>
+        <MenuOption onClick={props.onOpenMcp} disabled={!props.hasProject}>
+          {t("MCP connection info...")}
+        </MenuOption>
       </MenuItem>
       <MenuItem
         label={t("HELP")}
@@ -3727,6 +3826,65 @@ function MenuBar(props: {
         </MenuOption>
         <MenuOption onClick={props.onOpenAbout}>{t("About Foling...")}</MenuOption>
       </MenuItem>
+      <div className="menubar-drag" data-tauri-drag-region />
+      {!IS_MAC && <WindowControls />}
+    </div>
+  );
+}
+
+// Minimise / maximise / close, drawn by us because the OS frame is gone.
+// macOS keeps its native traffic lights (titleBarStyle: "Overlay"), so this
+// never renders there — see the setup hook in src-tauri/src/lib.rs.
+function WindowControls() {
+  // Resolved per click, not at render: `getCurrentWindow()` throws when there
+  // is no Tauri host, and calling it in the component body would take the whole
+  // app down when the frontend is opened in a plain browser (which is how the
+  // dev server is previewed).
+  const act = (fn: (w: ReturnType<typeof getCurrentWindow>) => void) =>
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        fn(getCurrentWindow());
+      } catch {
+        /* not running inside Tauri — nothing to control */
+      }
+    };
+  return (
+    <div className="window-controls">
+      <button
+        className="window-control"
+        aria-label={t("Minimize")}
+        onClick={act((w) => w.minimize())}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <rect x="0" y="4.5" width="10" height="1" fill="currentColor" />
+        </svg>
+      </button>
+      <button
+        className="window-control"
+        aria-label={t("Maximize")}
+        onClick={act((w) => w.toggleMaximize())}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <rect
+            x="0.5"
+            y="0.5"
+            width="9"
+            height="9"
+            fill="none"
+            stroke="currentColor"
+          />
+        </svg>
+      </button>
+      <button
+        className="window-control window-control-close"
+        aria-label={t("Close")}
+        onClick={act((w) => w.close())}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <path d="M0 0 L10 10 M10 0 L0 10" stroke="currentColor" fill="none" />
+        </svg>
+      </button>
     </div>
   );
 }
@@ -4555,10 +4713,18 @@ function EditorPanel(props: {
           <span className="breadcrumb-empty">{t("Select an element")}</span>
         ) : (
           props.breadcrumb.map((seg, i) => (
-            <span key={i}>
-              {i > 0 && ">"}
-              {seg}
-            </span>
+            <Fragment key={i}>
+              {i > 0 && <span className="breadcrumb-sep">&gt;</span>}
+              <span
+                className={
+                  i === props.breadcrumb.length - 1
+                    ? "breadcrumb-current"
+                    : undefined
+                }
+              >
+                {seg}
+              </span>
+            </Fragment>
           ))
         )}
       </div>
@@ -6663,6 +6829,107 @@ function AboutModal(props: { onClose: () => void }) {
           </dl>
           <p className="about-copyright">© 2026 大松雄斗</p>
           {REPO_URL && <p className="about-repo">{REPO_URL}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// PLUGINS → AI → MCP connection info. The point of this dialog is that the
+// user never has to type any of it: both transports are shown as a config
+// block ready to paste into an agent CLI's .mcp.json.
+function McpModal(props: {
+  status: McpStatus;
+  onClose: () => void;
+  onCopied: () => void;
+}) {
+  useEscClose(props.onClose);
+  const { status } = props;
+
+  const httpConfig = JSON.stringify(
+    {
+      mcpServers: {
+        foling: {
+          type: "http",
+          url: status.url,
+          headers: { Authorization: `Bearer ${status.token}` },
+        },
+      },
+    },
+    null,
+    2
+  );
+  const stdioConfig = JSON.stringify(
+    {
+      mcpServers: {
+        foling: {
+          command: "foling-mcp",
+          args: ["--project", status.project ?? ""],
+        },
+      },
+    },
+    null,
+    2
+  );
+
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      props.onCopied();
+    } catch {
+      /* clipboard unavailable — the text is on screen to select manually */
+    }
+  }
+
+  return (
+    <div className="modal-bg" onClick={props.onClose}>
+      <div
+        className="modal mcp-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("MCP server")}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <span>{t("MCP server")}</span>
+          <button aria-label={t("Close")} onClick={props.onClose}>
+            ×
+          </button>
+        </div>
+        <div className="mcp-body">
+          <p className="mcp-intro">
+            {t(
+              "Lets an AI agent edit this project through Foling's own operations, so folder numbering and config validity are guaranteed by the app."
+            )}
+          </p>
+
+          <h3>{t("Running editor (HTTP)")}</h3>
+          {status.enabled ? (
+            <>
+              <p className="mcp-note">
+                {t("Edits made by the agent appear in the tree automatically.")}
+              </p>
+              <pre className="mcp-config">{httpConfig}</pre>
+              <button onClick={() => copy(httpConfig)}>
+                {t("Copy configuration")}
+              </button>
+            </>
+          ) : (
+            <p className="mcp-note">
+              {t("The server is stopped. Start it from PLUGINS → AI.")}
+            </p>
+          )}
+
+          <h3>{t("Standalone (stdio)")}</h3>
+          <p className="mcp-note">
+            {t(
+              "Works with Foling closed. Download foling-mcp from the release page, or build it with: cargo build --release --bin foling-mcp"
+            )}
+          </p>
+          <pre className="mcp-config">{stdioConfig}</pre>
+          <button onClick={() => copy(stdioConfig)}>
+            {t("Copy configuration")}
+          </button>
         </div>
       </div>
     </div>
