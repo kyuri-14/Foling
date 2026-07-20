@@ -5,6 +5,9 @@ description = "Foling — HTFL (HyperText Foldering Language) editor"
 authors = ["大松雄斗"]
 license = "AGPL-3.0-or-later"
 edition = "2021"
+# The crate ships two binaries (the app and the MCP server), so a bare
+# `cargo run` — which is what `tauri dev` issues — needs to be told which one.
+default-run = "foling"
 
 [lib]
 name = "foling_lib"

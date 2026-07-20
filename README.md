@@ -21,6 +21,7 @@ HTML の DOM 構造を **フォルダ階層** で表現し、ツリー編集・C
 
 - [HTFL 言語仕様](docs/HTFL-SPEC.md) — フォルダ命名・`config.yaml` / `htfl.yaml` スキーマ・変数・ビルド
 - [プラグイン開発ガイド](docs/PLUGINS.md) — マニフェスト・エクスポータ API・`doc` 型
+- [MCP サーバーガイド](docs/MCP.md) — AI エージェント連携・ツール一覧・接続方法
 - [変更履歴](CHANGELOG.md) ｜ [コントリビューション](CONTRIBUTING.md)
 
 ## HTFL とは

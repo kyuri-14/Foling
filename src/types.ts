@@ -115,6 +115,20 @@ export interface AgentDef {
   command: string;
 }
 
+// State of the in-app MCP server (PLUGINS → AI → MCP server). While enabled,
+// an agent can drive the editor over HTTP using the same operations the UI
+// performs — see src-tauri/src/mcp.
+export interface McpStatus {
+  /** Endpoint to give the agent. Empty while the server is off. */
+  url: string;
+  /** Bearer token, minted per app launch. */
+  token: string;
+  enabled: boolean;
+  project: string | null;
+  /** Bumped by agent writes; the editor polls it to refresh the tree. */
+  reload_version: number;
+}
+
 export interface PluginManifest {
   name: string;
   version?: string;

@@ -15,3 +15,6 @@ src-tauri/gen/schemas
 
 # Local agent / tooling state (machine-local paths, permissions, secrets)
 .claude/settings.local.json
+
+# Cross-process filesystem lock taken while writing an HTFL project
+.foling/

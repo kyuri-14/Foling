@@ -7,6 +7,7 @@ import type {
   ClassFile,
   ImageFolder,
   LoadedPlugin,
+  McpStatus,
   ModuleDef,
   ModuleFile,
   NodeConfig,
@@ -152,6 +153,20 @@ export async function pickSaveTarget(
 
 export const openInBrowser = (url: string, browserPath: string | null) =>
   invoke<void>("open_in_browser", { url, browserPath });
+
+// ---- MCP server (in-app transport) ----
+
+// Bind the MCP server to `projectRoot`, or pass null to shut it down. Binding
+// is explicit because it opens a localhost endpoint that can rewrite the
+// project.
+export const mcpBind = (projectRoot: string | null) =>
+  invoke<McpStatus>("mcp_bind", { projectRoot });
+
+export const mcpStatus = () => invoke<McpStatus>("mcp_status");
+
+// Bumped whenever an agent writes through MCP, so the editor can re-read the
+// tree instead of showing a stale one.
+export const pollReload = () => invoke<number>("poll_reload");
 
 // Open the OS terminal in `dir` and run `command` (AI agent CLI hand-off).
 export const openTerminal = (dir: string, command: string) =>

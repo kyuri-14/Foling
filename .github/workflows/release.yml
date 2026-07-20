@@ -56,6 +56,7 @@ jobs:
       - run: npm ci
 
       - name: Build & publish app
+        id: tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -72,3 +73,36 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           args: ${{ matrix.args }}
+
+      # The MCP server is a second binary from the same crate. It is published
+      # as a plain executable rather than bundled into the installer: users
+      # point an agent CLI's .mcp.json at it by path, and it has to be runnable
+      # with the app closed.
+      - name: Build foling-mcp (Windows)
+        if: matrix.platform == 'windows-latest'
+        working-directory: src-tauri
+        run: |
+          cargo build --release --bin foling-mcp
+          cp target/release/foling-mcp.exe ../foling-mcp-windows-x86_64.exe
+
+      - name: Build foling-mcp (macOS universal)
+        if: matrix.platform == 'macos-latest'
+        working-directory: src-tauri
+        run: |
+          cargo build --release --bin foling-mcp --target aarch64-apple-darwin
+          cargo build --release --bin foling-mcp --target x86_64-apple-darwin
+          lipo -create -output ../foling-mcp-macos-universal \
+            target/aarch64-apple-darwin/release/foling-mcp \
+            target/x86_64-apple-darwin/release/foling-mcp
+
+      - name: Build foling-mcp (Linux)
+        if: matrix.platform == 'ubuntu-latest'
+        working-directory: src-tauri
+        run: |
+          cargo build --release --bin foling-mcp
+          cp target/release/foling-mcp ../foling-mcp-linux-x86_64
+
+      - name: Attach foling-mcp to the release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" foling-mcp-* --clobber
