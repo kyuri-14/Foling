@@ -1,0 +1,8 @@
+classes:
+  - pill
+available_classes:
+  - pill
+  - pill-accent
+  - note
+content: |
+  この要素には available_classes に候補が 3 つ登録してあり、いまは pill だけが適用されています。エディタの CLASSES 欄で切り替えてみてください。

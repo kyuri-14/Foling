@@ -1,0 +1,7 @@
+classes:
+  - note
+content: |
+  この行の文字色は $colorMain です。htfl.yaml の値を変えると、上の枠線とここが一緒に変わります。
+css: |
+  color: $colorMain;
+  font-weight: 700;

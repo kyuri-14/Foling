@@ -1,0 +1,25 @@
+/* 02_layout.css — 幅と間隔だけを持つクラス */
+
+.wrap {
+  max-width: $maxWidth;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.card {
+  margin-bottom: 1.6rem;
+  padding: 1.6rem 1.8rem;
+  background: #ffffff;
+  border: 1px solid $colorLine;
+  border-radius: $radius;
+}
+
+.card h2 {
+  margin-bottom: 0.6rem;
+  font-size: 1.25rem;
+  color: $colorMain;
+}
+
+.card p {
+  margin-bottom: 0.9rem;
+}

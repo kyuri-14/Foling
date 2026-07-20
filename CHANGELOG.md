@@ -6,6 +6,97 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Foling is an MCP server** (`docs/MCP.md`). An AI agent can now edit a
+  project through Foling's own operations instead of guessing at folder names:
+  `NN_` numbering, `config.yaml` shape and build semantics are enforced by the
+  app. 17 tools cover reading the tree, editing elements, expanding modules,
+  editing project settings and building.
+  - Elements are addressed either by **line number** (`L12` — the same number
+    the editor shows and the build emits as `id`) or by **path relative to
+    `HTML/`** (`02_body/01_header`). Every tool accepts and reports both.
+    Absolute paths never cross the boundary, and references cannot escape the
+    project.
+  - `htfl_build` returns **diagnostics** — unknown tags falling back to
+    `<div>`, classes applied but never defined, content on void elements, empty
+    `href`/`src` — so an agent can check its own work.
+  - Not exposed: arbitrary file writes, terminal launching, browser launching,
+    plugin-script reads.
+- **Two MCP transports**, sharing one implementation:
+  - **Running editor over HTTP** (PLUGINS → AI → *Start MCP server*). Bound to
+    `127.0.0.1`, gated by a bearer token minted per launch, and closed to
+    browser origins. Agent edits **refresh the open tree automatically**.
+    *MCP connection info...* shows a ready-to-paste `.mcp.json`.
+  - **`foling-mcp`**, a standalone stdio binary that works with Foling closed
+    (`--project <dir>`, `--read-only`). Published as a release asset for all
+    three platforms.
+
+### Fixed
+- **`<pre>` no longer picks up layout indentation.** The builder indents its
+  output for readability, but whitespace inside `<pre>` / `<textarea>` is
+  content — every line of a code block was arriving with two spaces per level of
+  nesting in front of it. Preformatted elements and their descendants now emit
+  verbatim, with no newline after the opening tag and none before the closing
+  one. Found by writing the new sample project.
+
+### Changed
+- **`sample-project` explains HTFL, in HTFL.** It was a generic page that
+  demonstrated nothing in particular. It is now an eight-section document about
+  the language, where each section uses the feature it describes: the CSS
+  section is styled by its own `css:`, the variables section reads `$colorMain`,
+  the JavaScript section has a working button, the `<head>` section points at
+  `htfl.yaml`. It also ships a module and three class files, so `modules/` and
+  the CLASSES palette are discoverable from a fresh open. Builds with no
+  diagnostics.
+- **The menu bar is now the title bar.** The OS frame is off, so FILE / EDIT /
+  VIEW … sit on the same row as the logo and the window buttons, giving back a
+  row of vertical space. Windows and Linux get buttons drawn by the app; macOS
+  keeps its native traffic lights (`titleBarStyle: "Overlay"`) with the menus
+  inset to clear them.
+- **Chrome is neutral, colour is information.** The menu bar is dark grey
+  instead of orange — it was the most saturated thing on screen and carried no
+  information. Editor tabs identify their layer with a 2px underline instead of
+  a filled block.
+- **DEV and RUN are buttons now**, rounded and sized to their labels rather than
+  full-height blocks that read as two more tabs.
+  - **DEV** is outlined when off and filled blue when on. Both states used to be
+    filled (dark blue vs bright blue), which left the current state ambiguous.
+  - **RUN** is green. Orange read as a warning for an action that is safe and
+    repeatable, and green is what a run/play control is everywhere else. The
+    generic primary-button colour split off into `--c-primary` and is unchanged.
+- **The breadcrumb colours the selected element, not the bar.** It was a
+  full-width saturated cyan fill, making the container louder than the one word
+  in it that mattered. Ancestors are now grey on a neutral strip and the
+  selected element carries the blue that already means "selected" in the tree.
+- **New app icon**, generated from `src-tauri/icons/source/*.svg` (kept in the
+  repo so the icon set can be rebuilt — see the README there).
+- **Icon changes now trigger a rebuild.** `tauri-build` embeds the icon but does
+  not register it with cargo, so replacing a logo left the *old* icon in the
+  binary until an unrelated source change forced a rebuild. `build.rs` now emits
+  `cargo:rerun-if-changed=icons`.
+- **The macOS icon is no longer oversized.** macOS has drawn app icons inside an
+  824/1024 (80.5%) body since Big Sur, leaving a margin for the Dock's shadow;
+  `tauri icon` does not add that margin, so a full-bleed source rendered about
+  24% larger than every neighbouring app. `icon.icns` is now built from a
+  separate inset source. Windows and Linux stay full-bleed, which is correct
+  for them.
+- **`src-tauri/src/lib.rs` split into `htfl/`** (`types`, `lock`, `tree`,
+  `node`, `project`, `build`, `import`, `plugin`) with the `#[tauri::command]`
+  layer reduced to thin delegations. The editor and the MCP server now call the
+  same functions, which is what keeps them from drifting apart. No behaviour
+  change.
+- **`NN_` folder numbering moved into Rust** (`htfl::tree`). It previously
+  existed only in the frontend's `rowsToParsedTree`, which was fine while the
+  editor was the sole writer. Insert-in-the-middle still renumbers only the
+  *following* siblings, and deletes still leave gaps — every avoided rename is
+  one less chance for Windows to answer with ERROR_ACCESS_DENIED.
+- **Filesystem locking is now cross-process.** The in-process mutex is joined
+  by an advisory `.foling/lock` directory, so a running editor and a
+  `foling-mcp` process cannot interleave writes to the same project. It is
+  best-effort by design: a lock that cannot be taken is skipped rather than
+  allowed to wedge the editor, and a lock outliving its holder is stolen after
+  30 seconds.
+
 ## [0.11.0] - 2026-07-08
 
 ### Added

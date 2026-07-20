@@ -1,0 +1,4 @@
+classes:
+  - lead
+content: |
+  HTFL — HyperText Foldering Language。HTML の構造を、そのままフォルダ階層で書く言語です。

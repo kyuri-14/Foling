@@ -1,0 +1,12 @@
+classes:
+  - btn
+attributes:
+  type: button
+content: |
+  押してみてください
+js: |
+  let on = false;
+  el.addEventListener('click', () => {
+    on = !on;
+    el.textContent = on ? '動きました。もう一度押すと戻ります' : '押してみてください';
+  });

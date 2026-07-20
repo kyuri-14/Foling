@@ -1,0 +1,4 @@
+content: |
+  01_header  →  <header>
+  02_main    →  <main>
+  05_footer  →  <footer>   ← 03, 04 が無くても順番は保たれる

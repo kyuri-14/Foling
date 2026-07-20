@@ -1,0 +1,35 @@
+# モジュール = 再利用する部品。サブツリーと、それが使うクラス定義を同梱します。
+# ツリーで .notice と入力すると、この中身がその場に展開されます。
+- name: notice
+  css: |
+    .notice {
+      display: flex;
+      gap: 0.8rem;
+      padding: 1rem 1.2rem;
+      border-left: 4px solid #1f883d;
+      border-radius: 4px;
+      background: #eaf5ee;
+    }
+    .notice-mark {
+      color: #1f883d;
+      font-weight: 700;
+    }
+  snapshot:
+    name: 01_div
+    config:
+      classes:
+        - notice
+    children:
+      - name: 01_span
+        config:
+          classes:
+            - notice-mark
+          content: |
+            NOTE
+        children: []
+      - name: 02_p
+        config:
+          content: |
+            モジュールを展開すると、この部品と .notice / .notice-mark の定義が
+            まとめてプロジェクトに入ります。
+        children: []

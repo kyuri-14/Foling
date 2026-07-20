@@ -1,0 +1,5 @@
+content: |
+  js: |
+    el.addEventListener('click', () => {
+      el.textContent = '動きました';
+    });

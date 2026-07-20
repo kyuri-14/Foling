@@ -1,6 +1,33 @@
-/* 01_foundation.css — リセット・ベース */
+/* 01_foundation.css — ページ全体の土台
+   ファイル名の NN_ は読み込み順です。土台 → レイアウト → 部品 の順に並べます。 */
 
-html, body {
-  margin: 0;
-  padding: 0;
+.site-head {
+  padding: 3rem 1.5rem 2rem;
+  text-align: center;
+  border-bottom: 1px solid $colorLine;
+}
+
+.site-head h1 {
+  font-size: 2.6rem;
+  letter-spacing: 0.02em;
+  color: $colorMain;
+}
+
+.lead {
+  margin-top: 0.6rem;
+  font-size: 1.1rem;
+}
+
+.note {
+  font-size: 0.9rem;
+  color: $colorMuted;
+}
+
+.site-foot {
+  margin-top: 3rem;
+  padding: 2rem 1.5rem;
+  border-top: 1px solid $colorLine;
+  text-align: center;
+  font-size: 0.9rem;
+  color: $colorMuted;
 }

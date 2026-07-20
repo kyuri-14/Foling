@@ -1,0 +1,10 @@
+classes:
+  - demo-box
+content: |
+  この枠線と余白は、この div の css: に直接書かれています。
+css: |
+  padding: 1.2rem;
+  border: 2px dashed $colorMain;
+  border-radius: 8px;
+  background: #ffffff;
+  text-align: center;

@@ -1,0 +1,4 @@
+content: |
+  css: |
+    padding: 1.2rem;
+    border: 2px dashed $colorMain;

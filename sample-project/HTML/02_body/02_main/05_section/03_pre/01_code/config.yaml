@@ -1,0 +1,7 @@
+content: |
+  variables:
+    colorMain: '#1f883d'
+    colorInk:  '#1f2328'
+  
+  css: |
+    border-color: $colorMain;

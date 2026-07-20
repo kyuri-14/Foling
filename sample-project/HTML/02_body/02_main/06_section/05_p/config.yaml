@@ -1,0 +1,4 @@
+classes:
+  - note
+content: |
+  htfl.yaml の output_mode を ssr にすると、この層は出力されません。JavaScript を切っても読めるページになります。

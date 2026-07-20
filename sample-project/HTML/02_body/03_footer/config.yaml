@@ -1,5 +1,2 @@
-content: © 2026 Foling
-css: |
-  padding: 1rem 2rem;
-  text-align: center;
-  color: $colorFontSub;
+classes:
+  - site-foot

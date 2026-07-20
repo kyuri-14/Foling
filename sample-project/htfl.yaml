@@ -1,5 +1,22 @@
 doctype: <!DOCTYPE html>
 variables:
-  colorFontSub: '#666666'
-  colorMain: '#39b54a'
-  shadow: '0 2px 8px rgba(0,0,0,0.15)'
+  colorBg: '#f6f8f6'
+  colorCodeBg: '#f1f3f1'
+  colorInk: '#1f2328'
+  colorLine: '#dfe3df'
+  colorMain: '#1f883d'
+  colorMuted: '#6b7280'
+  colorTint: '#eaf5ee'
+  fontStack: '''Hiragino Sans'', ''Yu Gothic UI'', ''Segoe UI'', sans-serif'
+  maxWidth: '820px'
+  radius: '8px'
+css_reset: true
+output_mode: ssr+js
+head:
+  charset: UTF-8
+  viewport: width=device-width, initial-scale=1
+  title: Foling — HTFL の書きかた
+  description: HTML の構造をフォルダ階層で表現する言語 HTFL を、HTFL 自身で説明したページ。
+  og_title: Foling — HTFL の書きかた
+  og_description: '1 フォルダ = 1 要素。閉じタグのない HTML。'
+  theme_color: '#1f883d'
