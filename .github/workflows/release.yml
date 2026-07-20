@@ -81,6 +81,7 @@ jobs:
       - name: Build foling-mcp (Windows)
         if: matrix.platform == 'windows-latest'
         working-directory: src-tauri
+        shell: bash
         run: |
           cargo build --release --bin foling-mcp
           cp target/release/foling-mcp.exe ../foling-mcp-windows-x86_64.exe
@@ -102,7 +103,11 @@ jobs:
           cargo build --release --bin foling-mcp
           cp target/release/foling-mcp ../foling-mcp-linux-x86_64
 
+      # shell: bash on every OS — the default on Windows runners is PowerShell,
+      # which does not glob-expand arguments to native commands, so gh would be
+      # handed the literal string "foling-mcp-*" and fail to find it.
       - name: Attach foling-mcp to the release
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ github.ref_name }}" foling-mcp-* --clobber
