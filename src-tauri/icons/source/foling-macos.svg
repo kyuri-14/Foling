@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later
+     Copyright (C) 2026 大松雄斗
+
+     Foling app icon for macOS only (icon.icns).
+
+     macOS does not draw app icons edge to edge. Since Big Sur, the grid puts
+     the icon body in an 824x824 square centred on a 1024x1024 canvas, leaving
+     a 100pt margin all round for the Dock's shadow and hover scaling. An icon
+     generated full-bleed therefore renders about 24% wider than every native
+     app sitting next to it — which is exactly what Foling did before this file
+     existed.
+
+     Same artwork as foling.svg, inset to that 824/1024 = 80.5% body.
+     The transform reads right to left: move the mark's own origin to (0,0),
+     scale 1352.701 -> 824, then offset by the 100pt margin. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"
+     viewBox="0 0 1024 1024"
+     style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+  <g transform="translate(100,100) scale(0.6091516) translate(-487.433,-805.119)">
+    <path fill="#000" d="M1840.134,1143.294l0,676.351c0,186.644 -151.531,338.175 -338.175,338.175l-676.351,0c-186.644,0 -338.175,-151.531 -338.175,-338.175l0,-676.351c0,-186.644 151.531,-338.175 338.175,-338.175l676.351,0c186.644,0 338.175,151.531 338.175,338.175Z"/>
+    <g fill="#0ff">
+      <path d="M1297.034,1205.153c-7.155,-7.155 -7.155,-18.772 0,-25.927c7.155,-7.155 18.772,-7.155 25.927,0l289.004,289.004c7.155,7.155 7.155,18.772 0,25.927c-7.155,7.155 -18.772,7.155 -25.927,0l-289.004,-289.004Z"/>
+      <path d="M1297.034,1179.226c7.155,-7.155 18.772,-7.155 25.927,-0c7.155,7.155 7.155,18.772 -0,25.927l-289.004,289.004c-7.155,7.155 -18.772,7.155 -25.927,-0c-7.155,-7.155 -7.155,-18.772 -0,-25.927l289.004,-289.004Z"/>
+      <path d="M1008.03,1468.23c7.155,-7.155 18.772,-7.155 25.927,-0c7.155,7.155 7.155,18.772 -0,25.927l-289.004,289.004c-7.155,7.155 -18.772,7.155 -25.927,-0c-7.155,-7.155 -7.155,-18.772 -0,-25.927l289.004,-289.004Z"/>
+      <path d="M1008.03,1494.157c-7.155,-7.155 -7.155,-18.772 0,-25.927c7.155,-7.155 18.772,-7.155 25.927,0l289.004,289.004c7.155,7.155 7.155,18.772 0,25.927c-7.155,7.155 -18.772,7.155 -25.927,0l-289.004,-289.004Z"/>
+      <circle cx="1309.446" cy="1192.19" r="73.084"/>
+      <circle cx="1599.001" cy="1481.193" r="73.084"/>
+      <circle cx="1309.446" cy="1770.749" r="73.084"/>
+      <circle cx="1020.994" cy="1481.193" r="73.084"/>
+      <circle cx="728.565" cy="1770.307" r="73.084"/>
+    </g>
+  </g>
+</svg>
