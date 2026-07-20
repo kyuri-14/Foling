@@ -6,6 +6,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-08
+
 ### Added
 - **AI agent integration** (PLUGINS menu → AI). Launch **Claude Code** or
   **Codex CLI** (built-in), or any agent a plugin registers via `agents:` in

@@ -94,7 +94,7 @@ const EDITOR_THEME_KEY = "foling.editorTheme";
 type EditorTheme = "dark" | "light" | "monokai";
 const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
 // Keep in sync with package.json / tauri.conf.json on release.
-const APP_VERSION = "0.10.0";
+const APP_VERSION = "0.11.0";
 // Set to the public repository URL once published (shown in the About dialog).
 const REPO_URL = "https://github.com/kyuri-14/Foling";
 
