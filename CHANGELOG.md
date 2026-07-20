@@ -6,6 +6,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-21
+
 ### Added
 - **Foling is an MCP server** (`docs/MCP.md`). An AI agent can now edit a
   project through Foling's own operations instead of guessing at folder names:
