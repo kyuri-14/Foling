@@ -6,6 +6,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-07-21
+
 ### Fixed
 - **Undo no longer leaves a folder on its `__tmp_…` name.** Applying tree edits
   renames in two steps (original → temp → final) so siblings can swap positions
