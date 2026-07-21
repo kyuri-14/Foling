@@ -55,6 +55,24 @@ jobs:
 
       - run: npm ci
 
+      # The macOS bundler copies every binary the crate produces into the .app,
+      # but `tauri build --target universal-apple-darwin` only lipos the *app*
+      # binary - so bundling fails on the second one unless a universal build
+      # of it already exists. Windows and Linux need no equivalent: a plain
+      # `cargo build --release` there emits both binaries side by side, which
+      # is why only this platform broke when foling-mcp was added.
+      - name: Pre-build foling-mcp as a universal binary (macOS)
+        if: matrix.platform == 'macos-latest'
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          cargo build --release --bin foling-mcp --target aarch64-apple-darwin
+          cargo build --release --bin foling-mcp --target x86_64-apple-darwin
+          mkdir -p target/universal-apple-darwin/release
+          lipo -create -output target/universal-apple-darwin/release/foling-mcp \
+            target/aarch64-apple-darwin/release/foling-mcp \
+            target/x86_64-apple-darwin/release/foling-mcp
+
       - name: Build & publish app
         id: tauri
         uses: tauri-apps/tauri-action@v0
@@ -74,34 +92,24 @@ jobs:
           includeUpdaterJson: true
           args: ${{ matrix.args }}
 
-      # The MCP server is a second binary from the same crate. It is published
-      # as a plain executable rather than bundled into the installer: users
-      # point an agent CLI's .mcp.json at it by path, and it has to be runnable
-      # with the app closed.
-      - name: Build foling-mcp (Windows)
+      # foling-mcp also ships as a plain executable, not only inside the app
+      # bundle: an agent CLI's .mcp.json points at it by path, and it has to be
+      # runnable with Foling closed. The build above already produced it, so
+      # these steps only give it a platform-tagged name.
+      - name: Stage foling-mcp (Windows)
         if: matrix.platform == 'windows-latest'
-        working-directory: src-tauri
         shell: bash
-        run: |
-          cargo build --release --bin foling-mcp
-          cp target/release/foling-mcp.exe ../foling-mcp-windows-x86_64.exe
+        run: cp src-tauri/target/release/foling-mcp.exe foling-mcp-windows-x86_64.exe
 
-      - name: Build foling-mcp (macOS universal)
+      - name: Stage foling-mcp (macOS universal)
         if: matrix.platform == 'macos-latest'
-        working-directory: src-tauri
-        run: |
-          cargo build --release --bin foling-mcp --target aarch64-apple-darwin
-          cargo build --release --bin foling-mcp --target x86_64-apple-darwin
-          lipo -create -output ../foling-mcp-macos-universal \
-            target/aarch64-apple-darwin/release/foling-mcp \
-            target/x86_64-apple-darwin/release/foling-mcp
+        shell: bash
+        run: cp src-tauri/target/universal-apple-darwin/release/foling-mcp foling-mcp-macos-universal
 
-      - name: Build foling-mcp (Linux)
+      - name: Stage foling-mcp (Linux)
         if: matrix.platform == 'ubuntu-latest'
-        working-directory: src-tauri
-        run: |
-          cargo build --release --bin foling-mcp
-          cp target/release/foling-mcp ../foling-mcp-linux-x86_64
+        shell: bash
+        run: cp src-tauri/target/release/foling-mcp foling-mcp-linux-x86_64
 
       # shell: bash on every OS — the default on Windows runners is PowerShell,
       # which does not glob-expand arguments to native commands, so gh would be
