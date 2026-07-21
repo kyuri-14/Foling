@@ -98,8 +98,11 @@ select {
   letter-spacing: 0.03em;
 }
 
+/* Clears the native traffic lights, which float over our bar's left end. They
+ * end about 72px from the window edge; the rest is breathing room so the logo
+ * does not read as a fourth button in the row. */
 .menubar-mac {
-  padding-left: 78px;
+  padding-left: 92px;
 }
 
 .menubar-logo {
@@ -111,8 +114,10 @@ select {
   pointer-events: none;
 }
 
+/* The padding above already clears the traffic lights, so the logo needs no
+ * extra offset of its own here — it just follows them. */
 .menubar-mac .menubar-logo {
-  display: none;
+  margin-left: 0;
 }
 
 /* Fills the gap between the last menu and the window buttons. Purely a drag
