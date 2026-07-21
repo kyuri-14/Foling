@@ -6,6 +6,30 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Undo no longer leaves a folder on its `__tmp_…` name.** Applying tree edits
+  renames in two steps (original → temp → final) so siblings can swap positions
+  without colliding, but *both* steps were pushed onto the undo stack. One
+  Ctrl+Z therefore landed the folder on the temp name and it took a second to
+  get home. The temp step is an implementation detail and no longer records
+  anything; the final step points back at the pre-rename path.
+- **macOS: letter shortcuts no longer type a character.** `Option+letter` *is* a
+  character on macOS (`†`, `ß`, `ç`, …), and the webview inserts it even when
+  the handler calls `preventDefault`. Pressing Option+T on a tree row — whose
+  text is selected on focus — replaced the tag name with `†`, which sanitises to
+  nothing and so landed on disk as `NN_tag`. Letter shortcuts now take
+  **⌘+⌥** on macOS (Alt elsewhere); arrow shortcuts keep plain Option, since
+  arrows produce no text.
+- **The element editor gives focus back to the tree.** Closing it left focus on
+  `<body>`, so the Alt+arrow shortcuts — which only act when a tree row is
+  focused — silently did nothing until the row was clicked.
+- **The logo is visible on macOS.** The title bar hid it there to make room for
+  the native traffic lights, but the bar already reserves padding to clear them.
+
+### Added
+- **Escape closes the element editor**, so leaving it never depends on a
+  modifier combination that the OS may turn into text.
+
 ## [0.12.0] - 2026-07-21
 
 ### Added

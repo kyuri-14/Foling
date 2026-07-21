@@ -1135,8 +1135,15 @@ async function syncChildren(
     }
   }
 
+  // Where each matched node lived before any renaming. The temp name below is
+  // an implementation detail, so undo entries must point back to *this* path —
+  // otherwise one Ctrl+Z lands the folder on its `__tmp_…` name and it takes a
+  // second to get home.
+  const originalPaths = matches.map((m) => m?.path ?? null);
+
   // Phase 2 — rename matched nodes whose folder name is changing to a temp
   // name first. Avoids collisions when two siblings effectively swap names.
+  // Deliberately pushes no undo entry: see originalPaths above.
   const tempSuffix = Math.random().toString(36).slice(2, 8);
   for (let i = 0; i < desired.length; i++) {
     const matched = matches[i];
@@ -1146,7 +1153,6 @@ async function syncChildren(
       const tempName = `__tmp_${tempSuffix}_${i}_${matched.name}`;
       const oldPath = matched.path;
       const tempPath = await renameNode(oldPath, tempName);
-      pushUndo({ type: "rename", oldPath, newPath: tempPath });
       matched.path = tempPath;
       matched.name = tempName;
       rewriteDescendantPaths(matched, oldPath, tempPath);
@@ -1165,7 +1171,12 @@ async function syncChildren(
       if (matched.name !== des.folderName) {
         const oldPath = matched.path;
         const newPath = await renameNode(oldPath, des.folderName);
-        pushUndo({ type: "rename", oldPath, newPath });
+        // One undo entry per logical rename, pointing at the pre-temp path.
+        pushUndo({
+          type: "rename",
+          oldPath: originalPaths[i] ?? oldPath,
+          newPath,
+        });
         matched.path = newPath;
         matched.name = des.folderName;
         matched.display_name = des.name;
@@ -1611,16 +1622,26 @@ export default function App() {
         return;
       }
 
-      // Alt+S / Alt+C / Alt+J — jump to the CSS / CLASSES / SCRIPT editor for
-      // the selected element and focus it for immediate typing. Deliberately
-      // avoids Ctrl/Cmd and Alt+digit so it won't clash with browser shortcuts
-      // (tabs, address bar, etc.) in the planned web build.
+      // Jump to the CSS / CLASSES / SCRIPT editor for the selected element and
+      // focus it for immediate typing. Alt+letter on Windows and Linux;
+      // Cmd+Option+letter on macOS. Deliberately avoids plain Ctrl/Cmd and
+      // Alt+digit so it won't clash with browser shortcuts (tabs, address bar)
+      // in the planned web build.
       //
-      // Compare physical keys (e.code): on macOS, Option+letter puts the
-      // TRANSFORMED character in e.key ("†", "ß", "ç", …), so key-based
-      // matching would never fire there. e.code ("KeyS" …) is position-based
-      // and identical on Windows Alt and macOS Option.
-      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      // Why macOS differs: Option+letter *is* a character there (†, ß, ç, …),
+      // and a webview will not reliably let preventDefault suppress it — the
+      // character lands in whatever field has focus even though the shortcut
+      // also fires. On a tree row, whose text is selected on focus, that
+      // replaced the tag name outright. Cmd+Option produces no character.
+      //
+      // Either way, compare physical keys (e.code): with Option held, e.key
+      // holds the transformed character, so key-based matching cannot work.
+      if (
+        e.altKey &&
+        !e.ctrlKey &&
+        !e.shiftKey &&
+        (IS_MAC ? e.metaKey : !e.metaKey)
+      ) {
         const k = e.code;
         const focusSoon = (sel: string) =>
           window.setTimeout(() => {
@@ -1630,7 +1651,7 @@ export default function App() {
           // Toggle the element editor (text / image). Press again to close.
           e.preventDefault();
           if (elementEdit) {
-            setElementEdit(null);
+            closeElementEditor();
             return;
           }
           if (!selectedPath) return;
@@ -1664,13 +1685,14 @@ export default function App() {
         }
       }
 
-      // Alt+Shift+R — DEV preview (click-to-edit). e.code for the same
-      // macOS Option reason as above (Option+Shift+R types "‰" into e.key).
+      // DEV preview (click-to-edit): Alt+Shift+R, or Cmd+Option+Shift+R on
+      // macOS — same character problem as the block above (Option+Shift+R types
+      // "‰" and would be inserted despite preventDefault).
       if (
         e.altKey &&
         e.shiftKey &&
         !e.ctrlKey &&
-        !e.metaKey &&
+        (IS_MAC ? e.metaKey : !e.metaKey) &&
         e.code === "KeyR"
       ) {
         e.preventDefault();
@@ -2153,6 +2175,15 @@ export default function App() {
       setHighlightSourcePath(null);
     }
     setElementEdit({ lineNumber });
+  }
+
+  // Close the element editor and put the caret back on the element's tree row.
+  // Without this, focus lands on <body> and the tree shortcuts (Alt+arrows to
+  // move or reorder) silently do nothing, because they only act when a tree row
+  // input is focused.
+  function closeElementEditor() {
+    setElementEdit(null);
+    if (selectedPath) setTreeFocusPath(selectedPath);
   }
 
   // Move the selection up / down to the adjacent *visible* saved row, and put
@@ -3485,7 +3516,7 @@ export default function App() {
           previewBaseUrl={previewBaseUrl}
           onApplyImage={applyImageToElement}
           onReloadImages={reloadImageFolders}
-          onClose={() => setElementEdit(null)}
+          onClose={closeElementEditor}
         />
       )}
       {showHeadDefault && (
@@ -6025,6 +6056,11 @@ function ElementEditModal(props: {
   onReloadImages: () => void;
   onClose: () => void;
 }) {
+  // Escape is the reliable way out: on macOS, Option+letter is a character, and
+  // a webview will not always let preventDefault suppress it — so closing this
+  // modal must not depend on Option+T while a text field has focus.
+  useEscClose(props.onClose);
+
   const c = props.config;
   const isImg = props.tag === "img";
   const VOID = new Set([
@@ -6727,28 +6763,37 @@ function SettingsModal(props: {
   );
 }
 
+// Letter shortcuts take Cmd+Option on macOS, where plain Option+letter is a
+// character the webview inserts regardless of preventDefault. Arrow shortcuts
+// keep plain Option everywhere — arrows produce no text.
+const MOD_LETTER = IS_MAC ? "⌘+⌥" : "Alt";
+const MOD_ARROW = IS_MAC ? "⌥" : "Alt";
+
 const SHORTCUTS: { keys: string; desc: string }[] = [
   { keys: "Ctrl+S", desc: "Save (tree / selected element / class file)" },
   { keys: "Ctrl+Z", desc: "Undo" },
   { keys: "Ctrl+Y / Ctrl+Shift+Z", desc: "Redo" },
   { keys: "Ctrl+Shift+F", desc: "Search in project" },
-  { keys: "Alt+T", desc: "Toggle the element editor (text / image)" },
+  { keys: `${MOD_LETTER}+T`, desc: "Toggle the element editor (text / image)" },
   { keys: "Shift+Delete", desc: "Delete the selected element and its subtree" },
-  { keys: "Alt+S", desc: "Edit the selected element's CSS" },
-  { keys: "Alt+C", desc: "Go to the CLASSES tab" },
-  { keys: "Alt+J", desc: "Edit the selected element's SCRIPT" },
-  { keys: "Alt+R", desc: "RUN (open preview)" },
-  { keys: "Alt+Shift+R", desc: "DEV (click-to-edit preview)" },
-  { keys: "Alt+↑ / ↓", desc: "Move the selection up / down a row" },
-  { keys: "Alt+←", desc: "Select the parent (from the editor: jump to the tag)" },
-  { keys: "Alt+→", desc: "Select the next sibling (wraps)" },
+  { keys: `${MOD_LETTER}+S`, desc: "Edit the selected element's CSS" },
+  { keys: `${MOD_LETTER}+C`, desc: "Go to the CLASSES tab" },
+  { keys: `${MOD_LETTER}+J`, desc: "Edit the selected element's SCRIPT" },
+  { keys: `${MOD_LETTER}+R`, desc: "RUN (open preview)" },
+  { keys: `${MOD_LETTER}+Shift+R`, desc: "DEV (click-to-edit preview)" },
+  { keys: `${MOD_ARROW}+↑ / ↓`, desc: "Move the selection up / down a row" },
+  {
+    keys: `${MOD_ARROW}+←`,
+    desc: "Select the parent (from the editor: jump to the tag)",
+  },
+  { keys: `${MOD_ARROW}+→`, desc: "Select the next sibling (wraps)" },
   { keys: "Enter", desc: "Tree: add a child element" },
   { keys: "Shift+Enter", desc: "Tree: add a sibling / outdent an empty row" },
   { keys: "Tab / Shift+Tab", desc: "Tree: indent / outdent" },
   { keys: "Backspace (empty row)", desc: "Tree: outdent / delete the row" },
   { keys: "↑ / ↓", desc: "Tree: move between rows" },
-  { keys: "Alt+Shift+↑ / ↓", desc: "Tree: reorder the selected row" },
-  { keys: "Alt+Shift+← / →", desc: "Tree: outdent / indent" },
+  { keys: `${MOD_ARROW}+Shift+↑ / ↓`, desc: "Tree: reorder the selected row" },
+  { keys: `${MOD_ARROW}+Shift+← / →`, desc: "Tree: outdent / indent" },
   { keys: "Ctrl+C / Ctrl+V", desc: "Tree: copy / paste an element with its subtree" },
   { keys: "Esc", desc: "Close dialog / autocomplete" },
 ];
@@ -6773,7 +6818,7 @@ function ShortcutsModal(props: { onClose: () => void }) {
         <div className="shortcuts-body">
           <div className="shortcuts-note">
             {t(
-              "macOS: Alt = Option, Ctrl = Cmd. Delete element: Cmd+Backspace."
+              "macOS: Ctrl = Cmd. Delete element: Cmd+Backspace. Letter shortcuts take ⌘+⌥ because Option+letter types a character."
             )}
           </div>
           <table>
