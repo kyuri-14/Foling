@@ -6,6 +6,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-07-22
+
 ### Changed
 - **macOS uses the system menu bar.** Every mac app has a native menu bar
   whether it wants one or not — the Edit menu there is what makes Cmd+C / Cmd+V
