@@ -6,6 +6,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.3] - 2026-07-22
+
 ### Added
 - **Search box in the centre of the title bar**, VS Code style. It opens the
   project search (tag / id / class / content / CSS), and fills what was an empty
