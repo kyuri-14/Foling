@@ -87,6 +87,7 @@ select {
  * carries the buttons the OS would have drawn. On macOS the native traffic
  * lights float over its left end, which is what .menubar-mac makes room for. */
 .menubar {
+  position: relative;
   background: var(--c-chrome);
   border-bottom: 1px solid var(--c-chrome-border);
   color: var(--c-chrome-text);
@@ -96,6 +97,58 @@ select {
   user-select: none;
   font-weight: 500;
   letter-spacing: 0.03em;
+}
+
+/* VS Code-style search box, centred on the window regardless of how wide the
+ * menus are (hence absolute, not a flex child). It is a button that opens the
+ * search modal. */
+.menu-search {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: min(340px, 34vw);
+  height: 22px;
+  padding: 0 8px 0 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  color: #9a9a9a;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  cursor: text;
+}
+
+.menu-search:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #c4c4c4;
+}
+
+.menu-search:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.menu-search-icon {
+  flex: none;
+  opacity: 0.85;
+}
+
+.menu-search-label {
+  flex: 1;
+  text-align: left;
+}
+
+/* The shortcut hint sits at the right, dimmer than the label. */
+.menu-search-kbd {
+  flex: none;
+  font-size: 11px;
+  color: #6f6f6f;
 }
 
 /* Clears the native traffic lights, which float over our bar's left end. They

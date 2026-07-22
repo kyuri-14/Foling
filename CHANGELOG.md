@@ -6,6 +6,20 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Search box in the centre of the title bar**, VS Code style. It opens the
+  project search (tag / id / class / content / CSS), and fills what was an empty
+  strip on macOS with the native menu. Present on every platform.
+- **Find shortcut**: `Ctrl+F` (Windows/Linux) or `Cmd+F` (macOS) opens the
+  search. `Ctrl+Shift+F` / `Cmd+Shift+F` still work as before. On macOS this is
+  Cmd only, never Ctrl — `Ctrl+F` there is the system "move cursor forward"
+  binding in text fields, and taking it over would break cursor movement.
+
+### Fixed
+- **"About Foling" no longer appears twice on macOS.** It sits in the
+  application menu (the standard place) and was also listed under Help; the Help
+  copy is removed on macOS.
+
 ## [0.12.2] - 2026-07-22
 
 ### Changed

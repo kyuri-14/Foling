@@ -1567,12 +1567,14 @@ export default function App() {
         });
         return;
       }
-      // Project-wide search: Ctrl+Shift+F.
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        e.shiftKey &&
-        e.key.toLowerCase() === "f"
-      ) {
+      // Project search: Ctrl+F (Windows/Linux) or Cmd+F (macOS). Ctrl+Shift+F
+      // is kept as an alias. On macOS this is Cmd only, never Ctrl: Ctrl+F
+      // there is the built-in "move cursor forward" binding inside text fields,
+      // and intercepting it would break cursor movement.
+      const findChord = IS_MAC
+        ? e.metaKey && !e.ctrlKey && !e.altKey
+        : e.ctrlKey && !e.metaKey && !e.altKey;
+      if (findChord && e.key.toLowerCase() === "f") {
         if (!projectRoot) return;
         e.preventDefault();
         setShowSearch(true);
@@ -3433,7 +3435,11 @@ export default function App() {
   return (
     <div className="app">
       {IS_MAC && macNativeMenu ? (
-        <MacTitleBar fullscreen={isFullscreen} />
+        <MacTitleBar
+          fullscreen={isFullscreen}
+          onOpenSearch={() => setShowSearch(true)}
+          hasProject={!!projectRoot}
+        />
       ) : (
       <MenuBar
         menu={menu}
@@ -3963,8 +3969,40 @@ function MenuBar(props: {
         <MenuOption onClick={props.onOpenAbout}>{t("About Foling...")}</MenuOption>
       </MenuItem>
       <div className="menubar-drag" data-tauri-drag-region />
+      <MenuSearchBox onOpen={props.onOpenSearch} disabled={!props.hasProject} />
       {!IS_MAC && <WindowControls />}
     </div>
+  );
+}
+
+// VS Code-style search box centred in the title bar. It is a button, not a
+// live input: clicking it (or the find shortcut) opens the project search
+// modal, which holds the real field and the results. Fills the otherwise-empty
+// centre of the macOS title bar, and gives Windows/Linux the same affordance.
+function MenuSearchBox(props: { onOpen: () => void; disabled: boolean }) {
+  return (
+    <button
+      className="menu-search"
+      disabled={props.disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        props.onOpen();
+      }}
+      title={t("Search in project")}
+    >
+      <svg
+        className="menu-search-icon"
+        width="13"
+        height="13"
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+      >
+        <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" />
+        <line x1="10.5" y1="10.5" x2="14" y2="14" stroke="currentColor" />
+      </svg>
+      <span className="menu-search-label">{t("Search...")}</span>
+      <span className="menu-search-kbd">{IS_MAC ? "⌘F" : "Ctrl+F"}</span>
+    </button>
   );
 }
 
@@ -3972,7 +4010,11 @@ function MenuBar(props: {
 // logo and a drag region. Traffic lights are native and float over the left
 // end; the reserved padding clears them, and drops away in fullscreen where
 // they hide.
-function MacTitleBar(props: { fullscreen: boolean }) {
+function MacTitleBar(props: {
+  fullscreen: boolean;
+  onOpenSearch: () => void;
+  hasProject: boolean;
+}) {
   return (
     <div
       className={`menubar mac-titlebar ${
@@ -3982,6 +4024,7 @@ function MacTitleBar(props: { fullscreen: boolean }) {
     >
       <img className="menubar-logo" src={folingMark} alt="" aria-hidden="true" />
       <div className="menubar-drag" data-tauri-drag-region />
+      <MenuSearchBox onOpen={props.onOpenSearch} disabled={!props.hasProject} />
     </div>
   );
 }
@@ -6896,7 +6939,10 @@ const SHORTCUTS: { keys: string; desc: string }[] = [
   { keys: "Ctrl+S", desc: "Save (tree / selected element / class file)" },
   { keys: "Ctrl+Z", desc: "Undo" },
   { keys: "Ctrl+Y / Ctrl+Shift+Z", desc: "Redo" },
-  { keys: "Ctrl+Shift+F", desc: "Search in project" },
+  {
+    keys: IS_MAC ? "⌘F / ⌘⇧F" : "Ctrl+F / Ctrl+Shift+F",
+    desc: "Search in project",
+  },
   { keys: `${MOD_LETTER}+T`, desc: "Toggle the element editor (text / image)" },
   { keys: "Shift+Delete", desc: "Delete the selected element and its subtree" },
   { keys: `${MOD_LETTER}+S`, desc: "Edit the selected element's CSS" },

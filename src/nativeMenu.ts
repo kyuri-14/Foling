@@ -235,6 +235,8 @@ export async function installNativeMenu(
       },
       {
         text: t("HELP"),
+        // About Foling lives in the app menu on macOS (the standard place), so
+        // it is intentionally absent here — otherwise it shows up twice.
         items: [
           {
             text: t("Keyboard shortcuts..."),
@@ -245,7 +247,6 @@ export async function installNativeMenu(
             text: t("Check for updates..."),
             action: run((a) => a.onCheckUpdate),
           },
-          { text: t("About Foling..."), action: run((a) => a.onOpenAbout) },
         ],
       },
     ],
