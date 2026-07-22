@@ -6,6 +6,25 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **macOS uses the system menu bar.** Every mac app has a native menu bar
+  whether it wants one or not — the Edit menu there is what makes Cmd+C / Cmd+V
+  work in a webview — so carrying our own in-window bar as well left two menus
+  stacked. On macOS the in-window bar is gone; FILE / EDIT / VIEW / WINDOW /
+  PLUGINS / HELP now live in the native bar at the top of the screen (as in
+  VS Code). Windows and Linux keep the in-window title bar unchanged.
+  - Built from the frontend with Tauri's menu API, driven by the same handlers
+    the in-window menu used, so there is no second copy of the menu logic to
+    keep in sync. If installing the native menu ever fails, the in-window bar
+    comes back as a fallback rather than leaving macOS with no menu.
+  - Cut / Copy / Paste / Select All are native menu items, so the standard
+    editing shortcuts work in every text field.
+
+### Fixed
+- **The macOS logo no longer drifts right in fullscreen.** The title bar
+  reserves space for the traffic lights, which hide in fullscreen; that padding
+  is now dropped there so the logo sits at the edge.
+
 ## [0.12.1] - 2026-07-21
 
 ### Fixed

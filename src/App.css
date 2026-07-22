@@ -120,6 +120,18 @@ select {
   margin-left: 0;
 }
 
+/* macOS with the native menu: this row carries only the logo and a drag handle,
+ * so it has no menu items to space against. Fullscreen (no .menubar-mac) insets
+ * the logo just off the edge; windowed keeps the 92px that clears the traffic
+ * lights. The compound selector wins over the .menubar-mac rule above
+ * regardless of source order. */
+.mac-titlebar {
+  padding-left: 12px;
+}
+.mac-titlebar.menubar-mac {
+  padding-left: 92px;
+}
+
 /* Fills the gap between the last menu and the window buttons. Purely a drag
  * target — without it, most of the title bar would not move the window. */
 .menubar-drag {

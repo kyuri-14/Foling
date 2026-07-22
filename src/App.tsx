@@ -2,6 +2,7 @@
 // Copyright (C) 2026 大松雄斗
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { installNativeMenu, NativeMenuActions } from "./nativeMenu";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -1336,7 +1337,8 @@ function nextOrderPrefix(siblings: TreeNode[]): string {
 
 export default function App() {
   // Re-render the whole tree when the UI language changes so t() output updates.
-  useLocaleVersion();
+  // The value also lets the native-menu effect rebuild its labels on a switch.
+  const localeVersion = useLocaleVersion();
   const [projectRoot, setProjectRoot] = useState<string | null>(null);
   const [tree, setTree] = useState<TreeNode | null>(null);
   const [projectConfig, setProjectConfig] = useState<ProjectConfig>({
@@ -1355,6 +1357,12 @@ export default function App() {
   const [showChangelog, setShowChangelog] = useState(false);
   const [mcp, setMcp] = useState<McpStatus | null>(null);
   const [showMcp, setShowMcp] = useState(false);
+  // macOS: use the system menu bar instead of the in-window one. Starts on
+  // (mac only); flips off if installing the native menu ever fails, so the
+  // in-window bar comes back as a fallback rather than leaving macOS menuless.
+  const [macNativeMenu, setMacNativeMenu] = useState(IS_MAC);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const nativeMenuRef = useRef<NativeMenuActions>({} as NativeMenuActions);
   const [locale, setLocale] = useState<"en" | "ja">(
     () => (localStorage.getItem(LOCALE_KEY) === "ja" ? "ja" : "en")
   );
@@ -3126,6 +3134,50 @@ export default function App() {
     }
   }
 
+  // Install (and keep current) the macOS native menu. Rebuilt only when a label
+  // or the item structure changes — the behaviours themselves come from
+  // nativeMenuRef, which is refreshed every render, so infrequent rebuilds are
+  // safe. If it throws (missing permission, unexpected API shape) fall back to
+  // the in-window bar rather than leaving macOS with no menu at all.
+  useEffect(() => {
+    if (!IS_MAC || !macNativeMenu) return;
+    installNativeMenu(nativeMenuRef).catch((e) => {
+      console.error("native menu install failed, using in-window bar:", e);
+      setMacNativeMenu(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    macNativeMenu,
+    localeVersion,
+    plugins,
+    mcp?.enabled,
+    projectConfig.css_reset,
+    browserPath,
+  ]);
+
+  // Track macOS fullscreen so the title bar can drop the padding it reserves
+  // for the traffic lights — those hide in fullscreen, and the padding would
+  // otherwise leave the logo floating well right of the edge.
+  useEffect(() => {
+    if (!IS_MAC) return;
+    let unlisten: (() => void) | undefined;
+    try {
+      const win = getCurrentWindow();
+      win.isFullscreen().then(setIsFullscreen).catch(() => undefined);
+      win
+        .onResized(() => {
+          win.isFullscreen().then(setIsFullscreen).catch(() => undefined);
+        })
+        .then((un) => {
+          unlisten = un;
+        })
+        .catch(() => undefined);
+    } catch {
+      /* not inside Tauri */
+    }
+    return () => unlisten?.();
+  }, []);
+
   // Resolve a path reported by the dev preview to a selection in the editor.
   function selectFromDev(path: string) {
     if (!tree) return;
@@ -3329,8 +3381,60 @@ export default function App() {
     setDirty(true);
   }
 
+  // The macOS native menu reads its behaviour through this ref, so it always
+  // calls the current handler even though the menu is only rebuilt when its
+  // labels change. Reassigned every render, below, once every handler exists.
+  const agents = [
+    ...BUILTIN_AGENTS,
+    ...plugins.flatMap((p) => p.manifest.agents ?? []),
+  ];
+  nativeMenuRef.current = {
+    onNew: newProjectFlow,
+    onOpen: openProjectFlow,
+    onSave: saveNow,
+    onEditHeadDefault: () => setShowHeadDefault(true),
+    onEditHeadProjectTags: () => setShowHeadProjectTags(true),
+    onImportHtml: importHtmlFlow,
+    onExportHtml: exportHtmlFlow,
+    onImportModule: importModuleFlow,
+    onUndo: runUndo,
+    onRedo: runRedo,
+    onAddChild: addChild,
+    onRename: renameSelected,
+    onDelete: deleteSelected,
+    onOpenSearch: () => setShowSearch(true),
+    onOpenClasses: () => setActiveTab("classes"),
+    onEditDoctype: editDoctype,
+    onEditHtmlAttrs: editHtmlAttrs,
+    onEditVariables: editVariables,
+    onToggleCssReset: toggleCssReset,
+    cssResetOn: projectConfig.css_reset !== false,
+    onReload: () => window.location.reload(),
+    onPickBrowser: pickBrowser,
+    onClearBrowser: clearBrowser,
+    browserPath,
+    onOpenSettings: () => setShowSettings(true),
+    onOpenPlugins: () => setShowPluginsModal(true),
+    onReloadPlugins: reloadPlugins,
+    plugins,
+    onRunExporter: runPluginExporter,
+    agents,
+    onRunAgent: runAgentCli,
+    onReloadTree: reloadTreeFromDisk,
+    mcpEnabled: !!mcp?.enabled,
+    onToggleMcp: toggleMcpServer,
+    onOpenMcp: openMcpPanel,
+    onOpenShortcuts: () => setShowShortcuts(true),
+    onOpenChangelog: () => setShowChangelog(true),
+    onCheckUpdate: checkForUpdate,
+    onOpenAbout: () => setShowAbout(true),
+  };
+
   return (
     <div className="app">
+      {IS_MAC && macNativeMenu ? (
+        <MacTitleBar fullscreen={isFullscreen} />
+      ) : (
       <MenuBar
         menu={menu}
         setMenu={setMenu}
@@ -3382,6 +3486,7 @@ export default function App() {
         onOpenSearch={() => setShowSearch(true)}
         hasProject={!!projectRoot}
       />
+      )}
       {projectRoot ? (
         <div className="workspace">
           <TreeEditorPanel
@@ -3859,6 +3964,24 @@ function MenuBar(props: {
       </MenuItem>
       <div className="menubar-drag" data-tauri-drag-region />
       {!IS_MAC && <WindowControls />}
+    </div>
+  );
+}
+
+// macOS title bar when the native menu is in use: no in-window menu, just the
+// logo and a drag region. Traffic lights are native and float over the left
+// end; the reserved padding clears them, and drops away in fullscreen where
+// they hide.
+function MacTitleBar(props: { fullscreen: boolean }) {
+  return (
+    <div
+      className={`menubar mac-titlebar ${
+        props.fullscreen ? "" : "menubar-mac"
+      }`}
+      data-tauri-drag-region
+    >
+      <img className="menubar-logo" src={folingMark} alt="" aria-hidden="true" />
+      <div className="menubar-drag" data-tauri-drag-region />
     </div>
   );
 }
