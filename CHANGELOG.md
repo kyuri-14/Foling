@@ -6,6 +6,29 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Bug reporting** (HELP → Report a bug, or the button on any error banner).
+  Uncaught errors, rejected promises and the app's own error messages are
+  captured as they happen, together with the version and OS, and assembled into
+  a report — no copying stack traces by hand.
+  - **Recording your steps is opt-in**, and attaching them to a report is a
+    second, separate choice. Turning recording off also discards what was held.
+  - **File paths are redacted** before the report is shown: a Windows home
+    directory carries the account name, and the issue tracker is public.
+  - The full report is displayed before anything is sent, and sending opens a
+    pre-filled GitHub issue in the browser — nothing leaves the machine on its
+    own.
+
+### Fixed
+- **The title-bar search works again.** It disabled itself whenever no element
+  was selected, which is the state the app starts in — so the shortcut and the
+  click both did nothing. With no code editor open it now searches the tree,
+  matching tag names and text and tinting the rows that hit.
+- **The search box no longer overlaps the HELP menu** on narrow windows. It was
+  centred absolutely, over the menus; it now sits between two flexible spacers,
+  so it centres in the space that is actually free and shrinks instead of
+  colliding.
+
 ## [0.12.4] - 2026-07-22
 
 ### Changed

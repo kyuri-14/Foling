@@ -99,18 +99,20 @@ select {
   letter-spacing: 0.03em;
 }
 
-/* VS Code-style find box, centred on the window regardless of how wide the
- * menus are (hence absolute, not a flex child). A live input: what you type is
- * marked in the open editor, and the placeholder names the scope. */
+/* VS Code-style find box. A live input: what you type is marked in the open
+ * editor, and the placeholder names the scope.
+ *
+ * Laid out in normal flow between two flexible drag spacers rather than
+ * absolutely centred. Absolute centring put it over the menus on narrow
+ * windows — flanking spacers centre it in the space that is actually free, so
+ * an overlap is not possible at any width. */
 .menu-search {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  flex: 0 1 340px;
+  align-self: center;
   display: flex;
   align-items: center;
   gap: 7px;
-  width: min(340px, 34vw);
+  min-width: 90px;
   height: 22px;
   padding: 0 8px 0 10px;
   background: rgba(255, 255, 255, 0.06);
@@ -3108,4 +3110,155 @@ button.secondary {
   padding: 7px 12px;
   cursor: pointer;
   min-width: 120px;
+}
+
+/* Tree row matching the title-bar find (tree scope). Tinted rather than
+ * selected, so it never competes with the actual selection. */
+.tree-row.find-row-hit {
+  background: rgba(180, 130, 0, 0.22);
+}
+
+/* ========== Bug report ========== */
+.bug-modal {
+  width: min(640px, 92vw);
+  max-height: 84vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.bug-body {
+  padding: 16px 20px;
+  overflow: auto;
+}
+
+.bug-intro {
+  margin: 0 0 14px;
+  font-size: 0.86rem;
+  color: #aaa;
+}
+
+.bug-field {
+  display: block;
+  margin-bottom: 14px;
+  font-size: 0.85rem;
+}
+
+.bug-field span {
+  display: block;
+  margin-bottom: 5px;
+  color: #ccc;
+}
+
+.bug-field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: #1b1b1b;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  color: #eaeaea;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.bug-check {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.bug-check input {
+  margin-top: 2px;
+  flex: none;
+}
+
+.bug-check small {
+  display: block;
+  margin-top: 3px;
+  color: #8f8f8f;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.bug-preview-label {
+  margin: 16px 0 6px;
+  font-size: 0.82rem;
+  color: #ccc;
+}
+
+/* The report is the thing being consented to, so it is shown in full rather
+ * than summarised — scrollable, but never hidden behind a disclosure. */
+.bug-preview {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 240px;
+  overflow: auto;
+  background: #161616;
+  border: 1px solid #333;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+.bug-note {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  color: #c9a227;
+  line-height: 1.5;
+}
+
+.bug-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.bug-actions button {
+  padding: 8px 18px;
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  background: #2c2c2c;
+  color: #eaeaea;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.bug-actions button.primary {
+  background: var(--c-primary);
+  border-color: var(--c-primary);
+  color: #fff;
+}
+
+/* Error toast gains a report button, so the text and the action need splitting. */
+.toast-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toast-text {
+  cursor: pointer;
+}
+
+.toast-report {
+  flex: none;
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.toast-report:hover {
+  background: rgba(255, 255, 255, 0.15);
 }

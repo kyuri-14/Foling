@@ -58,6 +58,7 @@ export interface NativeMenuActions {
   onOpenMcp: () => void;
   onOpenShortcuts: () => void;
   onOpenChangelog: () => void;
+  onReportBug: () => void;
   onCheckUpdate: () => void;
   onOpenAbout: () => void;
 }
@@ -243,6 +244,7 @@ export async function installNativeMenu(
             action: run((a) => a.onOpenShortcuts),
           },
           { text: t("Changelog..."), action: run((a) => a.onOpenChangelog) },
+          { text: t("Report a bug..."), action: run((a) => a.onReportBug) },
           {
             text: t("Check for updates..."),
             action: run((a) => a.onCheckUpdate),

@@ -63,6 +63,17 @@ import {
 } from "./treeModel";
 import { countMatches, highlight, markMatches } from "./syntax";
 import {
+  buildReport,
+  capturedErrors,
+  installErrorCapture,
+  isActionLogEnabled,
+  issueUrl,
+  logAction,
+  logError,
+  onErrorCaptured,
+  setActionLogEnabled,
+} from "./bugReport";
+import {
   AgentDef,
   ClassFile,
   ExporterDef,
@@ -119,6 +130,9 @@ const _savedEditorTheme = localStorage.getItem(EDITOR_THEME_KEY);
 if (_savedEditorTheme) {
   document.documentElement.setAttribute("data-editor-theme", _savedEditorTheme);
 }
+// Start catching uncaught errors before any component mounts, so a failure
+// during the first render is still in the report.
+installErrorCapture();
 
 // Common CSS properties for autocomplete (alphabetical, not exhaustive).
 const CSS_PROPERTIES = [
@@ -1385,8 +1399,27 @@ export default function App() {
     document.addEventListener("mousedown", onDown, true);
     return () => document.removeEventListener("mousedown", onDown, true);
   }, [menu]);
-  const [error, setError] = useState<string | null>(null);
+  const [errorRaw, setErrorRaw] = useState<string | null>(null);
+  const error = errorRaw;
+  // Everything shown in the error banner also lands in the bug report, so a
+  // report assembled later still knows what the user actually saw.
+  const setError = (msg: string | null) => {
+    setErrorRaw(msg);
+    if (msg) logError(msg, "app");
+  };
   const [info, setInfo] = useState<string | null>(null);
+  const [showBugReport, setShowBugReport] = useState(false);
+  // An error captured outside a React handler (an uncaught throw or a rejected
+  // promise) would otherwise leave no trace on screen. Surface it in the same
+  // banner the app uses for its own errors, so it can be reported.
+  useEffect(
+    () =>
+      onErrorCaptured(() => {
+        const last = capturedErrors().slice(-1)[0];
+        if (last && last.source !== "app") setErrorRaw(last.message);
+      }),
+    []
+  );
   // Auto-dismiss transient info toasts after a few seconds. Errors are sticky
   // (user dismisses by clicking) since they may need action.
   useEffect(() => {
@@ -1921,6 +1954,7 @@ export default function App() {
       const htmlNode = await readNode(t.path).catch(() => null);
       setHtmlLang(htmlNode?.attributes?.lang ?? "ja");
       setProjectRoot(root);
+      logAction("opened a project");
       setPlugins(plg);
       setTree(t);
       setRows(syncRowsFromTree(getViewRoot(t, treeView)));
@@ -2891,6 +2925,7 @@ export default function App() {
   }
 
   async function deleteSelected() {
+    logAction("deleted an element");
     if (!selectedPath) return;
     const segs = selectedPath.split(/[\\/]/);
     const dispName = segs[segs.length - 1] ?? "";
@@ -2937,6 +2972,7 @@ export default function App() {
 
   async function runUndo() {
     if (undoStack.length === 0) return;
+    logAction("undo");
     const last = undoStack[undoStack.length - 1];
     setUndoStack((prev) => prev.slice(0, -1));
     try {
@@ -2950,6 +2986,7 @@ export default function App() {
 
   async function runRedo() {
     if (redoStack.length === 0) return;
+    logAction("redo");
     const last = redoStack[redoStack.length - 1];
     setRedoStack((prev) => prev.slice(0, -1));
     try {
@@ -3009,6 +3046,7 @@ export default function App() {
 
   async function saveNow() {
     if (!selectedPath) return;
+    logAction("saved the selected element");
     try {
       const cleaned = cleanForSave(config);
       await writeNode(selectedPath, cleaned);
@@ -3022,6 +3060,7 @@ export default function App() {
   }
 
   async function openPreview(dev: boolean) {
+    logAction(dev ? "opened the DEV preview" : "ran the build");
     if (!projectRoot) return;
     try {
       if (treeDirty) {
@@ -3397,26 +3436,45 @@ export default function App() {
   }
 
   // Title-bar find. The scope follows whichever code editor is open, and the
-  // placeholder says which one, so the search's reach is never a guess. With no
-  // element selected there is no code on screen to search: matches stay null,
-  // which disables the box. Project-wide search remains on Ctrl/Cmd+Shift+F.
-  const findTarget: { label: string; text: string } | null = !projectRoot
-    ? null
-    : activeTab === "classes"
-    ? selectedClassFile
-      ? { label: t("Find in CLASSES"), text: classFileContent }
-      : null
-    : !selectedPath
-    ? null
-    : activeTab === "js"
-    ? { label: t("Find in SCRIPT"), text: config.js ?? "" }
-    : { label: t("Find in CSS"), text: config.css ?? "" };
+  // placeholder says which one, so the search's reach is never a guess. When no
+  // code editor is on screen it falls back to the tree, matching tag names and
+  // text — the box must never be a dead control while a project is open, which
+  // is exactly how the first version got this wrong. Project-wide search with a
+  // results list stays on Ctrl/Cmd+Shift+F.
+  const findCodeTarget: { label: string; text: string } | null =
+    activeTab === "classes"
+      ? selectedClassFile
+        ? { label: t("Find in CLASSES"), text: classFileContent }
+        : null
+      : !selectedPath
+      ? null
+      : activeTab === "js"
+      ? { label: t("Find in SCRIPT"), text: config.js ?? "" }
+      : { label: t("Find in CSS"), text: config.css ?? "" };
+
+  // Rows whose tag or text contains the query; used to tint them in the tree
+  // when the search is running against the tree rather than an editor.
+  const findRowHits = useMemo(() => {
+    const q = findQuery.trim().toLowerCase();
+    if (!q || findCodeTarget) return new Set<string>();
+    const hits = new Set<string>();
+    for (const r of rows) {
+      const hay = `${r.name} ${r.content ?? ""}`.toLowerCase();
+      if (hay.includes(q)) hits.add(r.id);
+    }
+    return hits;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, findQuery, !!findCodeTarget]);
 
   const findState: FindState = {
     query: findQuery,
     onChange: setFindQuery,
-    scopeLabel: findTarget?.label ?? t("Find"),
-    matches: findTarget ? countMatches(findTarget.text, findQuery) : null,
+    scopeLabel: findCodeTarget?.label ?? t("Find in tree"),
+    matches: !projectRoot
+      ? null
+      : findCodeTarget
+      ? countMatches(findCodeTarget.text, findQuery)
+      : findRowHits.size,
     inputRef: findInputRef,
   };
 
@@ -3465,6 +3523,7 @@ export default function App() {
     onOpenMcp: openMcpPanel,
     onOpenShortcuts: () => setShowShortcuts(true),
     onOpenChangelog: () => setShowChangelog(true),
+    onReportBug: () => setShowBugReport(true),
     onCheckUpdate: checkForUpdate,
     onOpenAbout: () => setShowAbout(true),
   };
@@ -3523,6 +3582,7 @@ export default function App() {
         onCheckUpdate={checkForUpdate}
         onOpenChangelog={() => setShowChangelog(true)}
         onOpenSearch={() => setShowSearch(true)}
+        onReportBug={() => setShowBugReport(true)}
         hasProject={!!projectRoot}
         find={findState}
       />
@@ -3557,6 +3617,7 @@ export default function App() {
             onFocused={() => setTreeFocusPath(null)}
             treeView={treeView}
             onChangeTreeView={switchTreeView}
+            findRowHits={findRowHits}
           />
           <EditorPanel
             selectedPath={selectedPath}
@@ -3691,13 +3752,21 @@ export default function App() {
         />
       )}
       {error && (
-        <div
-          className="toast toast-error"
-          role="alert"
-          onClick={() => setError(null)}
-          title="Click to dismiss"
-        >
-          ⚠ {error}
+        <div className="toast toast-error" role="alert">
+          <span
+            className="toast-text"
+            onClick={() => setError(null)}
+            title={t("Click to dismiss")}
+          >
+            ⚠ {error}
+          </span>
+          {/* The details are already captured; this only opens the report. */}
+          <button
+            className="toast-report"
+            onClick={() => setShowBugReport(true)}
+          >
+            {t("Report...")}
+          </button>
         </div>
       )}
       {info && !error && (
@@ -3735,6 +3804,17 @@ export default function App() {
         <ShortcutsModal onClose={() => setShowShortcuts(false)} />
       )}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {showBugReport && (
+        <BugReportModal
+          onClose={() => setShowBugReport(false)}
+          onCopied={() => setInfo(t("Copied to clipboard"))}
+          onOpenUrl={(url) => {
+            // System default browser, not the preview browser: this is a
+            // GitHub page, not the user's page under test.
+            openInBrowser(url, null).catch((e) => setError(String(e)));
+          }}
+        />
+      )}
       {showMcp && mcp && (
         <McpModal
           status={mcp}
@@ -3808,6 +3888,7 @@ function MenuBar(props: {
   onCheckUpdate: () => void;
   onOpenChangelog: () => void;
   onOpenSearch: () => void;
+  onReportBug: () => void;
   onEditHeadDefault: () => void;
   onEditHeadProjectTags: () => void;
   canEdit: boolean;
@@ -4000,6 +4081,9 @@ function MenuBar(props: {
         <MenuOption onClick={props.onOpenChangelog}>
           {t("Changelog...")}
         </MenuOption>
+        <MenuOption onClick={props.onReportBug}>
+          {t("Report a bug...")}
+        </MenuOption>
         <MenuOption onClick={props.onCheckUpdate}>
           {t("Check for updates...")}
         </MenuOption>
@@ -4007,6 +4091,7 @@ function MenuBar(props: {
       </MenuItem>
       <div className="menubar-drag" data-tauri-drag-region />
       <MenuSearchBox find={props.find} />
+      <div className="menubar-drag" data-tauri-drag-region />
       {!IS_MAC && <WindowControls />}
     </div>
   );
@@ -4087,6 +4172,7 @@ function MacTitleBar(props: { fullscreen: boolean; find: FindState }) {
       <img className="menubar-logo" src={folingMark} alt="" aria-hidden="true" />
       <div className="menubar-drag" data-tauri-drag-region />
       <MenuSearchBox find={props.find} />
+      <div className="menubar-drag" data-tauri-drag-region />
     </div>
   );
 }
@@ -4269,6 +4355,8 @@ function TreeEditorPanel(props: {
   onFocused: () => void;
   treeView: "body" | "head";
   onChangeTreeView: (v: "body" | "head") => void;
+  /** Row ids matching the title-bar find, when it targets the tree. */
+  findRowHits?: Set<string>;
 }) {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(
     null
@@ -4652,6 +4740,7 @@ function TreeEditorPanel(props: {
                 row.actualPath !== props.selectedPath &&
                 row.actualPath === props.highlightSourcePath
               }
+              findHit={props.findRowHits?.has(row.id) ?? false}
               focusRequest={pendingFocusId === row.id}
               onFocus={() => handleRowFocus(index)}
               onCommit={() => handleRowCommit(index)}
@@ -4803,6 +4892,8 @@ function TreeRowComponent(props: {
   unknownTag: boolean;
   selected: boolean;
   highlightSource: boolean;
+  /** Row matches the title-bar find (only set when the search targets the tree). */
+  findHit: boolean;
   focusRequest: boolean;
   onFocus: () => void;
   onCommit: () => void;
@@ -4830,6 +4921,7 @@ function TreeRowComponent(props: {
         "tree-row",
         props.selected ? "selected" : "",
         props.highlightSource ? "highlight-source" : "",
+        props.findHit ? "find-row-hit" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -7232,6 +7324,133 @@ function McpModal(props: {
           <button onClick={() => copy(stdioConfig)}>
             {t("Copy configuration")}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// HELP → Report a bug. The report is assembled automatically from what was
+// already captured; the user reviews it and chooses whether to send. Sending
+// opens a pre-filled issue in the browser, so nothing leaves the machine
+// silently and the exact text is visible first.
+function BugReportModal(props: {
+  onClose: () => void;
+  onOpenUrl: (url: string) => void;
+  onCopied: () => void;
+}) {
+  useEscClose(props.onClose);
+  const [logSteps, setLogSteps] = useState(isActionLogEnabled());
+  const [includeSteps, setIncludeSteps] = useState(isActionLogEnabled());
+  const [note, setNote] = useState("");
+
+  const report = buildReport({
+    appVersion: APP_VERSION,
+    includeActions: includeSteps,
+    note,
+  });
+  const errorCount = capturedErrors().length;
+
+  function toggleLogging(on: boolean) {
+    setActionLogEnabled(on);
+    setLogSteps(on);
+    if (!on) setIncludeSteps(false);
+  }
+
+  async function copyReport() {
+    try {
+      await navigator.clipboard.writeText(report);
+      props.onCopied();
+    } catch {
+      /* clipboard unavailable — the text is on screen to select manually */
+    }
+  }
+
+  return (
+    <div className="modal-bg" onClick={props.onClose}>
+      <div
+        className="modal bug-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("Report a bug")}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <span>{t("Report a bug")}</span>
+          <button aria-label={t("Close")} onClick={props.onClose}>
+            ×
+          </button>
+        </div>
+        <div className="bug-body">
+          <p className="bug-intro">
+            {errorCount > 0
+              ? t("{n} error(s) were captured automatically.").replace(
+                  "{n}",
+                  String(errorCount)
+                )
+              : t("No errors have been captured in this session.")}
+          </p>
+
+          <label className="bug-field">
+            <span>{t("What were you doing? (optional)")}</span>
+            <textarea
+              value={note}
+              rows={3}
+              spellCheck={false}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </label>
+
+          <label className="bug-check">
+            <input
+              type="checkbox"
+              checked={logSteps}
+              onChange={(e) => toggleLogging(e.target.checked)}
+            />
+            <span>
+              {t("Record my steps")}
+              <small>
+                {t(
+                  "Keeps a short list of recent actions so a report can show what led to a failure. Off by default."
+                )}
+              </small>
+            </span>
+          </label>
+
+          {logSteps && (
+            <label className="bug-check">
+              <input
+                type="checkbox"
+                checked={includeSteps}
+                onChange={(e) => setIncludeSteps(e.target.checked)}
+              />
+              <span>{t("Attach the recorded steps to this report")}</span>
+            </label>
+          )}
+
+          <div className="bug-preview-label">
+            {t("This is exactly what will be sent:")}
+          </div>
+          <pre className="bug-preview">{report}</pre>
+          <p className="bug-note">
+            {t(
+              "File paths are redacted, but the issue tracker is public — check the text above before sending."
+            )}
+          </p>
+
+          <div className="bug-actions">
+            <button onClick={copyReport}>{t("Copy")}</button>
+            <button
+              className="primary"
+              onClick={() =>
+                props.onOpenUrl(
+                  issueUrl(REPO_URL, `[bug] ${note.trim() || "report"}`, report)
+                )
+              }
+            >
+              {t("Open a GitHub issue")}
+            </button>
+          </div>
         </div>
       </div>
     </div>

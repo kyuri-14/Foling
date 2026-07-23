@@ -237,8 +237,29 @@ export const ja: LocaleDict = {
     "変数がありません。「＋ 変数を追加」で 1 つ作成してください。",
   "＋ Add variable": "＋ 変数を追加",
 
+  // Bug report
+  "Report a bug": "バグを報告",
+  "Report a bug...": "バグを報告...",
+  "Report...": "報告...",
+  "Click to dismiss": "クリックで閉じる",
+  "{n} error(s) were captured automatically.":
+    "{n} 件のエラーを自動で記録しました。",
+  "No errors have been captured in this session.":
+    "このセッションで記録されたエラーはありません。",
+  "What were you doing? (optional)": "何をしていましたか？（任意）",
+  "Record my steps": "操作手順を記録する",
+  "Keeps a short list of recent actions so a report can show what led to a failure. Off by default.":
+    "直近の操作を短いリストとして保持し、不具合に至る流れを報告に含められるようにします。既定はオフです。",
+  "Attach the recorded steps to this report": "記録した操作手順をこの報告に添付する",
+  "This is exactly what will be sent:": "送信される内容はこのとおりです:",
+  "File paths are redacted, but the issue tracker is public — check the text above before sending.":
+    "ファイルパスは伏字にしていますが、Issue は公開されます。送信前に上の内容を確認してください。",
+  Copy: "コピー",
+  "Open a GitHub issue": "GitHub Issue を開く",
+
   // Title-bar find box
   Find: "検索",
+  "Find in tree": "ツリー内を検索",
   "Find in CSS": "CSS 内を検索",
   "Find in SCRIPT": "SCRIPT 内を検索",
   "Find in CLASSES": "CLASSES 内を検索",
