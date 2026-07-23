@@ -61,7 +61,7 @@ import {
   rowMetaFromConfig,
   rowsToParsedTree,
 } from "./treeModel";
-import { highlight } from "./syntax";
+import { countMatches, highlight, markMatches } from "./syntax";
 import {
   AgentDef,
   ClassFile,
@@ -1362,6 +1362,10 @@ export default function App() {
   // in-window bar comes back as a fallback rather than leaving macOS menuless.
   const [macNativeMenu, setMacNativeMenu] = useState(IS_MAC);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Title-bar find. Scoped to whichever code editor is open (VS Code's Cmd+F);
+  // the project-wide search modal stays on Ctrl/Cmd+Shift+F.
+  const [findQuery, setFindQuery] = useState("");
+  const findInputRef = useRef<HTMLInputElement>(null);
   const nativeMenuRef = useRef<NativeMenuActions>({} as NativeMenuActions);
   const [locale, setLocale] = useState<"en" | "ja">(
     () => (localStorage.getItem(LOCALE_KEY) === "ja" ? "ja" : "en")
@@ -1567,14 +1571,23 @@ export default function App() {
         });
         return;
       }
-      // Project search: Ctrl+F (Windows/Linux) or Cmd+F (macOS). Ctrl+Shift+F
-      // is kept as an alias. On macOS this is Cmd only, never Ctrl: Ctrl+F
-      // there is the built-in "move cursor forward" binding inside text fields,
-      // and intercepting it would break cursor movement.
+      // Find in the open editor: Ctrl+F (Windows/Linux) or Cmd+F (macOS) puts
+      // the caret in the title-bar search box. On macOS this is Cmd only, never
+      // Ctrl: Ctrl+F there is the built-in "move cursor forward" binding inside
+      // text fields, and intercepting it would break cursor movement.
       const findChord = IS_MAC
         ? e.metaKey && !e.ctrlKey && !e.altKey
         : e.ctrlKey && !e.metaKey && !e.altKey;
-      if (findChord && e.key.toLowerCase() === "f") {
+      if (findChord && !e.shiftKey && e.key.toLowerCase() === "f") {
+        if (!projectRoot) return;
+        e.preventDefault();
+        findInputRef.current?.focus();
+        findInputRef.current?.select();
+        return;
+      }
+      // Search the whole project: Ctrl/Cmd+Shift+F opens the results dialog.
+      // Same split as VS Code — plain F is local, Shift+F is project-wide.
+      if (findChord && e.shiftKey && e.key.toLowerCase() === "f") {
         if (!projectRoot) return;
         e.preventDefault();
         setShowSearch(true);
@@ -3383,6 +3396,30 @@ export default function App() {
     setDirty(true);
   }
 
+  // Title-bar find. The scope follows whichever code editor is open, and the
+  // placeholder says which one, so the search's reach is never a guess. With no
+  // element selected there is no code on screen to search: matches stay null,
+  // which disables the box. Project-wide search remains on Ctrl/Cmd+Shift+F.
+  const findTarget: { label: string; text: string } | null = !projectRoot
+    ? null
+    : activeTab === "classes"
+    ? selectedClassFile
+      ? { label: t("Find in CLASSES"), text: classFileContent }
+      : null
+    : !selectedPath
+    ? null
+    : activeTab === "js"
+    ? { label: t("Find in SCRIPT"), text: config.js ?? "" }
+    : { label: t("Find in CSS"), text: config.css ?? "" };
+
+  const findState: FindState = {
+    query: findQuery,
+    onChange: setFindQuery,
+    scopeLabel: findTarget?.label ?? t("Find"),
+    matches: findTarget ? countMatches(findTarget.text, findQuery) : null,
+    inputRef: findInputRef,
+  };
+
   // The macOS native menu reads its behaviour through this ref, so it always
   // calls the current handler even though the menu is only rebuilt when its
   // labels change. Reassigned every render, below, once every handler exists.
@@ -3435,11 +3472,7 @@ export default function App() {
   return (
     <div className="app">
       {IS_MAC && macNativeMenu ? (
-        <MacTitleBar
-          fullscreen={isFullscreen}
-          onOpenSearch={() => setShowSearch(true)}
-          hasProject={!!projectRoot}
-        />
+        <MacTitleBar fullscreen={isFullscreen} find={findState} />
       ) : (
       <MenuBar
         menu={menu}
@@ -3491,6 +3524,7 @@ export default function App() {
         onOpenChangelog={() => setShowChangelog(true)}
         onOpenSearch={() => setShowSearch(true)}
         hasProject={!!projectRoot}
+        find={findState}
       />
       )}
       {projectRoot ? (
@@ -3529,6 +3563,7 @@ export default function App() {
             breadcrumb={breadcrumbSegments}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
+            find={findQuery}
             config={config}
             update={update}
             onRun={runBuild}
@@ -3780,6 +3815,8 @@ function MenuBar(props: {
   canUndo: boolean;
   canRedo: boolean;
   hasProject: boolean;
+  /** Title-bar find box state. */
+  find: FindState;
 }) {
   const close = () => props.setMenu(null);
   return (
@@ -3969,26 +4006,34 @@ function MenuBar(props: {
         <MenuOption onClick={props.onOpenAbout}>{t("About Foling...")}</MenuOption>
       </MenuItem>
       <div className="menubar-drag" data-tauri-drag-region />
-      <MenuSearchBox onOpen={props.onOpenSearch} disabled={!props.hasProject} />
+      <MenuSearchBox find={props.find} />
       {!IS_MAC && <WindowControls />}
     </div>
   );
 }
 
-// VS Code-style search box centred in the title bar. It is a button, not a
-// live input: clicking it (or the find shortcut) opens the project search
-// modal, which holds the real field and the results. Fills the otherwise-empty
-// centre of the macOS title bar, and gives Windows/Linux the same affordance.
-function MenuSearchBox(props: { onOpen: () => void; disabled: boolean }) {
+/** What the title-bar find box is currently searching. */
+export interface FindState {
+  query: string;
+  onChange: (v: string) => void;
+  /** Shown in the placeholder so the search's reach is never a guess. */
+  scopeLabel: string;
+  /** Null when there is nothing searchable open. */
+  matches: number | null;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+}
+
+// VS Code-style find box, centred in the title bar. A live input: what you type
+// is marked in place in whichever editor is open, rather than opening a dialog
+// of results to jump to. Its placeholder names the scope (CSS / SCRIPT /
+// CLASSES), because "how far does this search reach" is otherwise invisible.
+function MenuSearchBox(props: { find: FindState }) {
+  const f = props.find;
+  const disabled = f.matches === null;
   return (
-    <button
-      className="menu-search"
-      disabled={props.disabled}
-      onClick={(e) => {
-        e.stopPropagation();
-        props.onOpen();
-      }}
-      title={t("Search in project")}
+    <div
+      className={`menu-search ${disabled ? "is-disabled" : ""}`}
+      onClick={(e) => e.stopPropagation()}
     >
       <svg
         className="menu-search-icon"
@@ -4000,9 +4045,30 @@ function MenuSearchBox(props: { onOpen: () => void; disabled: boolean }) {
         <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" />
         <line x1="10.5" y1="10.5" x2="14" y2="14" stroke="currentColor" />
       </svg>
-      <span className="menu-search-label">{t("Search...")}</span>
-      <span className="menu-search-kbd">{IS_MAC ? "⌘F" : "Ctrl+F"}</span>
-    </button>
+      <input
+        ref={f.inputRef}
+        className="menu-search-input"
+        value={f.query}
+        disabled={disabled}
+        spellCheck={false}
+        placeholder={f.scopeLabel}
+        aria-label={f.scopeLabel}
+        onChange={(e) => f.onChange(e.target.value)}
+        onKeyDown={(e) => {
+          // Escape clears and hands focus back to the editor.
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            f.onChange("");
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      {f.query.trim() !== "" && f.matches !== null && (
+        <span className="menu-search-count">
+          {f.matches === 0 ? t("No results") : f.matches}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -4010,11 +4076,7 @@ function MenuSearchBox(props: { onOpen: () => void; disabled: boolean }) {
 // logo and a drag region. Traffic lights are native and float over the left
 // end; the reserved padding clears them, and drops away in fullscreen where
 // they hide.
-function MacTitleBar(props: {
-  fullscreen: boolean;
-  onOpenSearch: () => void;
-  hasProject: boolean;
-}) {
+function MacTitleBar(props: { fullscreen: boolean; find: FindState }) {
   return (
     <div
       className={`menubar mac-titlebar ${
@@ -4024,7 +4086,7 @@ function MacTitleBar(props: {
     >
       <img className="menubar-logo" src={folingMark} alt="" aria-hidden="true" />
       <div className="menubar-drag" data-tauri-drag-region />
-      <MenuSearchBox onOpen={props.onOpenSearch} disabled={!props.hasProject} />
+      <MenuSearchBox find={props.find} />
     </div>
   );
 }
@@ -4870,6 +4932,8 @@ function EditorPanel(props: {
   breadcrumb: string[];
   activeTab: TabKey;
   setActiveTab: (t: TabKey) => void;
+  /** Title-bar search term, marked in whichever code editor is open. */
+  find?: string;
   config: NodeConfig;
   update: <K extends keyof NodeConfig>(k: K, v: NodeConfig[K]) => void;
   onRun: () => void;
@@ -4982,11 +5046,13 @@ function EditorPanel(props: {
             appliedClassNames={props.appliedClassNames}
             disabledInherits={props.config.disabled_inherits ?? []}
             onToggleInherited={props.onToggleInherited}
+            find={props.find}
           />
         ) : props.activeTab === "js" ? (
           <JsEditor
             value={props.config.js ?? ""}
             onChange={(v) => props.update("js", v || undefined)}
+            find={props.find}
           />
         ) : props.activeTab === "classes" ? (
           <ClassesTab
@@ -5003,6 +5069,7 @@ function EditorPanel(props: {
             appliedClassNames={props.appliedClassNames}
             onToggleAvailable={props.onToggleAvailableClass}
             hasSelectedElement={!!props.selectedPath}
+            find={props.find}
           />
         ) : (
           <CssEditor
@@ -5235,6 +5302,8 @@ function CssEditor(props: {
   /** Inherited props the user has explicitly disabled (toggled off). */
   disabledInherits?: string[];
   onToggleInherited?: (prop: string) => void;
+  /** Title-bar search term; matches are marked in the highlighted overlay. */
+  find?: string;
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
@@ -5661,7 +5730,11 @@ function CssEditor(props: {
             <pre className="code-overlay" ref={overlayRef} aria-hidden="true">
               <code
                 dangerouslySetInnerHTML={{
-                  __html: highlight(props.value, "css") + "\n",
+                  __html:
+                    markMatches(
+                      highlight(props.value, "css"),
+                      props.find ?? ""
+                    ) + "\n",
                 }}
               />
             </pre>
@@ -5826,6 +5899,8 @@ function CssBareEditor(props: {
   value: string;
   onChange: (v: string) => void;
   variables: Record<string, string>;
+  /** Title-bar search term; matches are marked in the highlighted overlay. */
+  find?: string;
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
@@ -6041,7 +6116,11 @@ function CssBareEditor(props: {
           <pre className="code-overlay" ref={overlayRef} aria-hidden="true">
             <code
               dangerouslySetInnerHTML={{
-                __html: highlight(props.value, "css") + "\n",
+                __html:
+                    markMatches(
+                      highlight(props.value, "css"),
+                      props.find ?? ""
+                    ) + "\n",
               }}
             />
           </pre>
@@ -6135,7 +6214,12 @@ function ContentEditor(props: {
   );
 }
 
-function JsEditor(props: { value: string; onChange: (v: string) => void }) {
+function JsEditor(props: {
+  value: string;
+  onChange: (v: string) => void;
+  /** Title-bar search term; matches are marked in the highlighted overlay. */
+  find?: string;
+}) {
   const gutterRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLPreElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -6176,7 +6260,11 @@ function JsEditor(props: { value: string; onChange: (v: string) => void }) {
         <pre className="code-overlay" ref={overlayRef} aria-hidden="true">
           <code
             dangerouslySetInnerHTML={{
-              __html: highlight(props.value, "js") + "\n",
+              __html:
+                    markMatches(
+                      highlight(props.value, "js"),
+                      props.find ?? ""
+                    ) + "\n",
             }}
           />
         </pre>
@@ -7409,6 +7497,8 @@ function ClassesTab(props: {
   /** Toggle membership in the current element's available_classes pool. */
   onToggleAvailable: (name: string) => void;
   hasSelectedElement: boolean;
+  /** Title-bar search term, passed through to the class-file editor. */
+  find?: string;
 }) {
   // Classes parsed out of the currently-selected file.
   const chips = useMemo(() => {
@@ -7502,6 +7592,7 @@ function ClassesTab(props: {
                 value={props.content}
                 onChange={props.onChangeContent}
                 variables={props.variables}
+                find={props.find}
               />
             </div>
           </>

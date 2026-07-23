@@ -80,3 +80,65 @@ export function highlight(code: string, lang: SyntaxLang): string {
   }
   return out;
 }
+
+// ---------- Find-in-editor ----------
+//
+// The editors show a syntax-highlighted overlay behind a transparent textarea,
+// so search hits are marked by rewriting that overlay's HTML rather than the
+// text itself. Only the text between tags is touched, which keeps the `syn-*`
+// spans the highlighter produced intact.
+
+function markInText(text: string, needle: string): string {
+  const lower = text.toLowerCase();
+  let out = "";
+  let from = 0;
+  for (;;) {
+    const at = lower.indexOf(needle, from);
+    if (at === -1) return out + text.slice(from);
+    out += text.slice(from, at);
+    out += `<mark class="find-hit">${text.slice(at, at + needle.length)}</mark>`;
+    from = at + needle.length;
+  }
+}
+
+/** Wrap every case-insensitive match of `query` in already-highlighted HTML. */
+export function markMatches(html: string, query: string): string {
+  const q = query.trim();
+  if (!q) return html;
+  // The haystack is HTML-escaped, so the needle has to be too — searching for
+  // "<div" should find the text the highlighter wrote as "&lt;div".
+  const needle = esc(q).toLowerCase();
+  if (!needle) return html;
+
+  let out = "";
+  let i = 0;
+  while (i < html.length) {
+    if (html[i] === "<") {
+      const end = html.indexOf(">", i);
+      if (end === -1) return out + html.slice(i);
+      out += html.slice(i, end + 1);
+      i = end + 1;
+      continue;
+    }
+    const nextTag = html.indexOf("<", i);
+    const stop = nextTag === -1 ? html.length : nextTag;
+    out += markInText(html.slice(i, stop), needle);
+    i = stop;
+  }
+  return out;
+}
+
+/** How many times `query` occurs in `text`, case-insensitively. */
+export function countMatches(text: string, query: string): number {
+  const q = query.trim().toLowerCase();
+  if (!q) return 0;
+  const hay = text.toLowerCase();
+  let n = 0;
+  let from = 0;
+  for (;;) {
+    const at = hay.indexOf(q, from);
+    if (at === -1) return n;
+    n += 1;
+    from = at + q.length;
+  }
+}

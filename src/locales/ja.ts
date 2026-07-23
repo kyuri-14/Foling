@@ -237,6 +237,13 @@ export const ja: LocaleDict = {
     "変数がありません。「＋ 変数を追加」で 1 つ作成してください。",
   "＋ Add variable": "＋ 変数を追加",
 
+  // Title-bar find box
+  Find: "検索",
+  "Find in CSS": "CSS 内を検索",
+  "Find in SCRIPT": "SCRIPT 内を検索",
+  "Find in CLASSES": "CLASSES 内を検索",
+  "No results": "該当なし",
+
   // Window controls (title bar)
   Minimize: "最小化",
   Maximize: "最大化 / 元に戻す",

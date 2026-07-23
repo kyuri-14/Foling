@@ -99,9 +99,9 @@ select {
   letter-spacing: 0.03em;
 }
 
-/* VS Code-style search box, centred on the window regardless of how wide the
- * menus are (hence absolute, not a flex child). It is a button that opens the
- * search modal. */
+/* VS Code-style find box, centred on the window regardless of how wide the
+ * menus are (hence absolute, not a flex child). A live input: what you type is
+ * marked in the open editor, and the placeholder names the scope. */
 .menu-search {
   position: absolute;
   left: 50%;
@@ -120,18 +120,15 @@ select {
   font-size: 12px;
   font-weight: 400;
   letter-spacing: 0;
-  cursor: text;
 }
 
-.menu-search:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.14);
-  color: #c4c4c4;
+.menu-search:focus-within {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--c-dev-on);
 }
 
-.menu-search:disabled {
-  opacity: 0.45;
-  cursor: default;
+.menu-search.is-disabled {
+  opacity: 0.4;
 }
 
 .menu-search-icon {
@@ -139,16 +136,37 @@ select {
   opacity: 0.85;
 }
 
-.menu-search-label {
+.menu-search-input {
   flex: 1;
-  text-align: left;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #e4e4e4;
+  font-size: 12px;
+  padding: 0;
 }
 
-/* The shortcut hint sits at the right, dimmer than the label. */
-.menu-search-kbd {
+.menu-search-input::placeholder {
+  color: #8a8a8a;
+}
+
+/* Match count, right-aligned and dimmer than the query. */
+.menu-search-count {
   flex: none;
   font-size: 11px;
-  color: #6f6f6f;
+  color: #8a8a8a;
+  white-space: nowrap;
+}
+
+/* Search hits inside the syntax-highlighted overlay. Background only — the
+ * syntax colour underneath has to stay readable, so the text keeps its own
+ * colour rather than being forced to a single one. */
+.code-overlay mark.find-hit,
+.find-hit {
+  background: #6b4a00;
+  color: inherit;
+  border-radius: 2px;
 }
 
 /* Clears the native traffic lights, which float over our bar's left end. They

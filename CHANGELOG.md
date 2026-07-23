@@ -6,6 +6,19 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **The title-bar search box is a real input, and marks hits in place.** It used
+  to be a button that opened a dialog of results to jump to, which made both the
+  behaviour and the reach of the search hard to read. Now what you type is
+  highlighted where it sits, in whichever editor is open.
+- **Find is scoped to the open editor, and says so.** The placeholder reads
+  "Find in CSS" / "Find in SCRIPT" / "Find in CLASSES" depending on the current
+  tab, and a match count sits at the right of the box — so the search's reach is
+  never a guess. Ctrl/Cmd+F focuses the box; Escape clears it.
+- **Project-wide search stays on Ctrl/Cmd+Shift+F**, keeping the results dialog
+  for searching across every element. Same split as VS Code: plain F is local,
+  Shift+F is project-wide.
+
 ## [0.12.3] - 2026-07-22
 
 ### Added
