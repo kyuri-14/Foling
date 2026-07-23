@@ -6,6 +6,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.5] - 2026-07-23
+
 ### Added
 - **Bug reporting** (HELP → Report a bug, or the button on any error banner).
   Uncaught errors, rejected promises and the app's own error messages are
