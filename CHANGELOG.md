@@ -6,6 +6,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.7] - 2026-07-23
+
 ### Fixed
 - **HTML export no longer drops a typed `id`, `class` or `style`.** Each of these
   can come from its own field or from a key typed into the attribute box, and

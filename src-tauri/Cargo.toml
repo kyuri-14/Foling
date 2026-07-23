@@ -1,6 +1,6 @@
 [package]
 name = "foling"
-version = "0.12.6"
+version = "0.12.7"
 description = "Foling — HTFL (HyperText Foldering Language) editor"
 authors = ["大松雄斗"]
 license = "AGPL-3.0-or-later"
