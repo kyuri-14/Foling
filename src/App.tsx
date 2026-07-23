@@ -65,6 +65,7 @@ import { countMatches, highlight, markMatches } from "./syntax";
 import {
   buildReport,
   capturedErrors,
+  HOME_MARK,
   installErrorCapture,
   isActionLogEnabled,
   issueUrl,
@@ -3441,6 +3442,22 @@ export default function App() {
   // text — the box must never be a dead control while a project is open, which
   // is exactly how the first version got this wrong. Project-wide search with a
   // results list stays on Ctrl/Cmd+Shift+F.
+  // The CSS tab is four sections, not one: the element's own declarations plus
+  // what it inherits, what its classes bring, and the resolved BASIN cascade.
+  // Searching only the own block found almost nothing worth finding — the
+  // property you are hunting usually arrived from a class or an ancestor.
+  const cssTabText = useMemo(() => {
+    const parts = [config.css ?? ""];
+    for (const d of inherited) parts.push(`${d.prop}: ${d.value};`);
+    for (const b of basin) parts.push(`${b.prop}: ${b.value}; ${b.sourceLabel}`);
+    for (const c of classDefs) {
+      if ((config.available_classes ?? config.classes ?? []).includes(c.name)) {
+        parts.push(`${c.name}\n${c.properties}`);
+      }
+    }
+    return parts.join("\n");
+  }, [config, inherited, basin, classDefs]);
+
   const findCodeTarget: { label: string; text: string } | null =
     activeTab === "classes"
       ? selectedClassFile
@@ -3450,7 +3467,7 @@ export default function App() {
       ? null
       : activeTab === "js"
       ? { label: t("Find in SCRIPT"), text: config.js ?? "" }
-      : { label: t("Find in CSS"), text: config.css ?? "" };
+      : { label: t("Find in CSS"), text: cssTabText };
 
   // Rows whose tag or text contains the query; used to tint them in the tree
   // when the search is running against the tree rather than an editor.
@@ -5377,6 +5394,36 @@ function applyCommentToggle(
   }, 0);
 }
 
+// Wrap find matches in rendered text. The code editors mark hits by rewriting
+// their highlighted HTML, but the CSS tab's other sections — inherited, classes
+// and BASIN — are React nodes, so they need this instead. Searching only the
+// element's own CSS was near useless: what a user wants to locate is usually a
+// property that arrived from a class or an ancestor.
+function withFindMarks(text: string, query: string): React.ReactNode {
+  const q = query.trim();
+  if (!q) return text;
+  const needle = q.toLowerCase();
+  const lower = text.toLowerCase();
+  const parts: React.ReactNode[] = [];
+  let from = 0;
+  let key = 0;
+  for (;;) {
+    const at = lower.indexOf(needle, from);
+    if (at === -1) {
+      parts.push(text.slice(from));
+      break;
+    }
+    if (at > from) parts.push(text.slice(from, at));
+    parts.push(
+      <mark key={key++} className="find-hit">
+        {text.slice(at, at + needle.length)}
+      </mark>
+    );
+    from = at + needle.length;
+  }
+  return parts;
+}
+
 function CssEditor(props: {
   value: string;
   onChange: (v: string) => void;
@@ -5665,9 +5712,13 @@ function CssEditor(props: {
                 >
                   {d.source.display_name || d.source.name}
                 </span>
-                <span className="css-inherited-prop">{d.prop}</span>
+                <span className="css-inherited-prop">
+                  {withFindMarks(d.prop, props.find ?? "")}
+                </span>
                 <span className="css-inherited-colon">: </span>
-                <span className="css-inherited-value">{d.value};</span>
+                <span className="css-inherited-value">
+                  {withFindMarks(d.value, props.find ?? "")};
+                </span>
               </div>
             );
           })
@@ -5743,7 +5794,9 @@ function CssEditor(props: {
                       <span className="class-card-check">
                         {isApplied ? "☑" : "☐"}
                       </span>
-                      <span className="class-card-name">{c.name}</span>
+                      <span className="class-card-name">
+                        {withFindMarks(c.name, props.find ?? "")}
+                      </span>
                       <span className="class-card-source">{c.source}</span>
                       {props.onDeleteClassFromElement && (
                         <button
@@ -5759,7 +5812,9 @@ function CssEditor(props: {
                         </button>
                       )}
                     </div>
-                    <pre className="class-card-props">{propsText}</pre>
+                    <pre className="class-card-props">
+                      {withFindMarks(propsText, props.find ?? "")}
+                    </pre>
                   </div>
                 );
               })}
@@ -5902,10 +5957,16 @@ function CssEditor(props: {
                 onClick={() => onBasinClick(b)}
               >
                 <span className="basin-layer-pill">{pillText}</span>
-                <span className="basin-prop">{b.prop}</span>
+                <span className="basin-prop">
+                  {withFindMarks(b.prop, props.find ?? "")}
+                </span>
                 <span className="basin-colon">: </span>
-                <span className="basin-value">{b.value};</span>
-                <span className="basin-source">{b.sourceLabel}</span>
+                <span className="basin-value">
+                  {withFindMarks(b.value, props.find ?? "")};
+                </span>
+                <span className="basin-source">
+                  {withFindMarks(b.sourceLabel, props.find ?? "")}
+                </span>
               </div>
             );
           })
@@ -7431,7 +7492,16 @@ function BugReportModal(props: {
           <div className="bug-preview-label">
             {t("This is exactly what will be sent:")}
           </div>
-          <pre className="bug-preview">{report}</pre>
+          {/* Same string that gets sent — the markers are only tinted, so the
+              user can see at a glance where their paths were removed. */}
+          <pre className="bug-preview">
+            {report.split(HOME_MARK).map((chunk, i) => (
+              <Fragment key={i}>
+                {i > 0 && <mark className="redacted-mark">{HOME_MARK}</mark>}
+                {chunk}
+              </Fragment>
+            ))}
+          </pre>
           <p className="bug-note">
             {t(
               "File paths are redacted, but the issue tracker is public — check the text above before sending."

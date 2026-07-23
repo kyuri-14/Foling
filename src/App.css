@@ -3262,3 +3262,13 @@ button.secondary {
 .toast-report:hover {
   background: rgba(255, 255, 255, 0.15);
 }
+
+/* Redaction markers in the report preview. Tinted so the user can find where
+ * their paths were removed — the text itself is identical to what is sent. */
+.redacted-mark {
+  background: #1f5c3a;
+  color: #b8f0d0;
+  border-radius: 2px;
+  padding: 0 3px;
+  font-weight: 700;
+}

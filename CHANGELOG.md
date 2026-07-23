@@ -6,6 +6,17 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **Find on the CSS tab covers the whole cascade**, not just the element's own
+  declarations. Inherited properties, the classes' definitions and the resolved
+  BASIN rows are all searched and marked. Searching one element's own block
+  found little worth finding — the property you are hunting has usually arrived
+  from a class or an ancestor.
+- **Redactions in a bug report are visible.** The marker is now a plain
+  `[HOME]` rather than a bare `~`, it is tinted in the preview so the spots can
+  be found at a glance, and the report states how many paths were removed — so
+  "none were found" is distinguishable from "redaction did not run".
+
 ## [0.12.5] - 2026-07-23
 
 ### Added

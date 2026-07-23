@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   buildReport,
   clearCaptured,
+  countRedactions,
   issueUrl,
   logAction,
   logError,
@@ -20,20 +21,41 @@ beforeEach(() => {
 // A report is headed for a public issue tracker, so the tests that matter are
 // the ones about what must *not* end up in it.
 describe("redact", () => {
-  it("folds a Windows home directory down to ~", () => {
+  it("folds a Windows home directory away", () => {
     const out = redact("at C:\\Users\\大松雄斗\\Documents\\site\\HTML");
-    expect(out).toContain("~\\Documents\\site\\HTML");
+    expect(out).toContain("[HOME]\\Documents\\site\\HTML");
     expect(out).not.toContain("大松雄斗");
   });
 
   it("folds macOS and Linux home directories", () => {
-    expect(redact("/Users/yuto/dev/x")).toBe("~/dev/x");
-    expect(redact("/home/yuto/dev/x")).toBe("~/dev/x");
+    expect(redact("/Users/yuto/dev/x")).toBe("[HOME]/dev/x");
+    expect(redact("/home/yuto/dev/x")).toBe("[HOME]/dev/x");
   });
 
   it("redacts every occurrence, not just the first", () => {
     const out = redact("C:\\Users\\a\\one and C:\\Users\\a\\two");
     expect(out).not.toContain("Users\\a");
+  });
+
+  it("counts what it would remove, so 'none' is distinguishable from 'failed'", () => {
+    expect(countRedactions("C:\\Users\\a\\x and /home/b/y")).toBe(2);
+    expect(countRedactions("no paths here")).toBe(0);
+  });
+});
+
+describe("report privacy section", () => {
+  it("says how many paths were removed", () => {
+    logError("failed at C:\\Users\\大松雄斗\\p\\htfl.yaml", "app");
+    const out = buildReport({ appVersion: "1", includeActions: false });
+    expect(out).toContain("1 file path(s)");
+    expect(out).toContain("[HOME]");
+    expect(out).not.toContain("大松雄斗");
+  });
+
+  it("says so plainly when there was nothing to remove", () => {
+    logError("something broke", "app");
+    const out = buildReport({ appVersion: "1", includeActions: false });
+    expect(out).toContain("No file paths were found");
   });
 });
 

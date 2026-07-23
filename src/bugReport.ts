@@ -126,11 +126,30 @@ export function installErrorCapture(): void {
 }
 
 // A Windows home directory embeds the account name, and this text is headed for
-// a public issue. Fold any home path down to `~` before it can be read.
+// a public issue, so home paths are folded away before the report is even shown.
+//
+// The marker is deliberately loud rather than a bare `~`: the point is for the
+// user to be able to *find* the redactions and satisfy themselves that their
+// name is gone. `[HOME]` survives Markdown and a URL query intact.
+export const HOME_MARK = "[HOME]";
+
+const HOME_PATTERNS = [
+  /[A-Za-z]:\\Users\\[^\\/\r\n"']+/g,
+  /\/(?:Users|home)\/[^/\r\n"']+/g,
+];
+
 export function redact(text: string): string {
-  return text
-    .replace(/[A-Za-z]:\\Users\\[^\\/\r\n"']+/g, "~")
-    .replace(/\/(?:Users|home)\/[^/\r\n"']+/g, "~");
+  let out = text;
+  for (const re of HOME_PATTERNS) out = out.replace(re, HOME_MARK);
+  return out;
+}
+
+/** How many home paths `redact` would fold away. Reported to the user so an
+ *  absence of redactions reads as "none were found", not "it didn't work". */
+export function countRedactions(text: string): number {
+  let n = 0;
+  for (const re of HOME_PATTERNS) n += text.match(re)?.length ?? 0;
+  return n;
 }
 
 export interface ReportInput {
@@ -198,7 +217,16 @@ export function buildReport(input: ReportInput): string {
     lines.push("");
   }
 
-  return redact(lines.join("\n"));
+  // Stated in the report itself, so the reader knows whether anything was
+  // removed and can go looking for the markers.
+  const raw = lines.join("\n");
+  const removed = countRedactions(raw);
+  const privacy =
+    removed === 0
+      ? "_No file paths were found in this report._"
+      : `_${removed} file path(s) had the home directory replaced with \`${HOME_MARK}\`._`;
+
+  return redact(`${raw}### Privacy\n\n${privacy}\n`);
 }
 
 /** GitHub's issue form takes the body in the query string; it has a practical
