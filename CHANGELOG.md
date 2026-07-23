@@ -6,6 +6,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.4] - 2026-07-22
+
 ### Changed
 - **The title-bar search box is a real input, and marks hits in place.** It used
   to be a button that opened a dialog of results to jump to, which made both the
