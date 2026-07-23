@@ -6,6 +6,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.6] - 2026-07-23
+
 ### Changed
 - **Find on the CSS tab covers the whole cascade**, not just the element's own
   declarations. Inherited properties, the classes' definitions and the resolved

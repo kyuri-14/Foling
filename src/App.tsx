@@ -117,7 +117,7 @@ const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
 // here than pulling in the OS plugin just to answer one question.
 const IS_MAC = navigator.userAgent.includes("Macintosh");
 // Keep in sync with package.json / tauri.conf.json on release.
-const APP_VERSION = "0.12.5";
+const APP_VERSION = "0.12.6";
 // Set to the public repository URL once published (shown in the About dialog).
 const REPO_URL = "https://github.com/kyuri-14/Foling";
 
