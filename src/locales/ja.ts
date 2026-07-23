@@ -252,8 +252,8 @@ export const ja: LocaleDict = {
     "直近の操作を短いリストとして保持し、不具合に至る流れを報告に含められるようにします。既定はオフです。",
   "Attach the recorded steps to this report": "記録した操作手順をこの報告に添付する",
   "This is exactly what will be sent:": "送信される内容はこのとおりです:",
-  "File paths are redacted, but the issue tracker is public — check the text above before sending.":
-    "ファイルパスは伏字にしていますが、Issue は公開されます。送信前に上の内容を確認してください。",
+  "Paths containing your account name are replaced with [REDACTED] (shown in green above). The issue tracker is public, so check the text before sending.":
+    "アカウント名を含むパスは [REDACTED]（上で緑色に表示）に置き換えられます。Issue は公開されるので、送信前に内容を確認してください。",
   Copy: "コピー",
   "Open a GitHub issue": "GitHub Issue を開く",
 

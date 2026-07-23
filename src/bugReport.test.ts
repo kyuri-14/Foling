@@ -23,13 +23,13 @@ beforeEach(() => {
 describe("redact", () => {
   it("folds a Windows home directory away", () => {
     const out = redact("at C:\\Users\\大松雄斗\\Documents\\site\\HTML");
-    expect(out).toContain("[HOME]\\Documents\\site\\HTML");
+    expect(out).toContain("[REDACTED]\\Documents\\site\\HTML");
     expect(out).not.toContain("大松雄斗");
   });
 
   it("folds macOS and Linux home directories", () => {
-    expect(redact("/Users/yuto/dev/x")).toBe("[HOME]/dev/x");
-    expect(redact("/home/yuto/dev/x")).toBe("[HOME]/dev/x");
+    expect(redact("/Users/yuto/dev/x")).toBe("[REDACTED]/dev/x");
+    expect(redact("/home/yuto/dev/x")).toBe("[REDACTED]/dev/x");
   });
 
   it("redacts every occurrence, not just the first", () => {
@@ -48,7 +48,7 @@ describe("report privacy section", () => {
     logError("failed at C:\\Users\\大松雄斗\\p\\htfl.yaml", "app");
     const out = buildReport({ appVersion: "1", includeActions: false });
     expect(out).toContain("1 file path(s)");
-    expect(out).toContain("[HOME]");
+    expect(out).toContain("[REDACTED]");
     expect(out).not.toContain("大松雄斗");
   });
 

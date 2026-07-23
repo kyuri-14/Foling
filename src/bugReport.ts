@@ -130,8 +130,10 @@ export function installErrorCapture(): void {
 //
 // The marker is deliberately loud rather than a bare `~`: the point is for the
 // user to be able to *find* the redactions and satisfy themselves that their
-// name is gone. `[HOME]` survives Markdown and a URL query intact.
-export const HOME_MARK = "[HOME]";
+// name is gone. "[REDACTED]" reads unambiguously as "removed for privacy"
+// (a bare "~" or "[HOME]" can be mistaken for a real path token), and it
+// survives Markdown and a URL query intact.
+export const HOME_MARK = "[REDACTED]";
 
 const HOME_PATTERNS = [
   /[A-Za-z]:\\Users\\[^\\/\r\n"']+/g,

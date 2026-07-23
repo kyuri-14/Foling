@@ -161,14 +161,19 @@ select {
   white-space: nowrap;
 }
 
-/* Search hits inside the syntax-highlighted overlay. Background only — the
- * syntax colour underneath has to stay readable, so the text keeps its own
- * colour rather than being forced to a single one. */
+/* Search hits. This has to stay legible on two very different surfaces — the
+ * dark code editors (light text) and the light "paper" CSS-tab sections (dark
+ * text) — so it forces *both* a bright amber background and a near-black text
+ * colour, the universal find-highlight look. The earlier dark-amber background
+ * that kept the underlying colour was unreadable on the light sections and
+ * muddy on the dark ones. Losing the syntax colour on the few matched
+ * characters is the right trade: the point is to make the match jump out. */
 .code-overlay mark.find-hit,
 .find-hit {
-  background: #6b4a00;
-  color: inherit;
+  background: #ffd54a;
+  color: #1a1a1a;
   border-radius: 2px;
+  padding: 0 1px;
 }
 
 /* Clears the native traffic lights, which float over our bar's left end. They

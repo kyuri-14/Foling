@@ -230,26 +230,51 @@ pub fn render_node(
         ));
     }
 
+    // `id`, `class` and `style` can each arrive from two directions: the
+    // dedicated config field, and a key the user typed into the free-form
+    // attribute map. Emitting both wrote the attribute twice — and HTML keeps
+    // the *first* occurrence — so whichever source came second was silently
+    // ignored. Most visibly: a typed `style` attribute suppressed the whole
+    // `css:` block. They are merged here instead, and skipped in the loop below.
+    let attr_id = cfg.attributes.get("id").map(String::as_str);
+    let attr_class = cfg.attributes.get("class").map(String::as_str);
+    let attr_style = cfg.attributes.get("style").map(String::as_str);
+
     // id = the element's line number within <body> (auto, overrides any
     // stored id). Elements outside <body> keep their explicit id if set.
     if numbering {
         *id_counter += 1;
         out.push_str(&format!(" id=\"{}\"", id_counter));
-    } else if let Some(id) = &cfg.id {
+    } else if let Some(id) = cfg.id.as_deref().or(attr_id) {
         out.push_str(&format!(" id=\"{}\"", escape_attr(id)));
     }
-    if !cfg.classes.is_empty() {
-        out.push_str(&format!(
-            " class=\"{}\"",
-            escape_attr(&cfg.classes.join(" "))
-        ));
+
+    {
+        let mut classes: Vec<&str> = cfg.classes.iter().map(String::as_str).collect();
+        for c in attr_class.unwrap_or("").split_whitespace() {
+            if !classes.contains(&c) {
+                classes.push(c);
+            }
+        }
+        if !classes.is_empty() {
+            out.push_str(&format!(" class=\"{}\"", escape_attr(&classes.join(" "))));
+        }
     }
+
     for (k, v) in &cfg.attributes {
+        if k == "id" || k == "class" || k == "style" {
+            continue; // merged above / below
+        }
         let v = substitute_vars(v, vars);
         out.push_str(&format!(" {}=\"{}\"", k, escape_attr(&v)));
     }
+
     // Build inline style from `css` plus any explicitly-disabled inherited
-    // properties (emitted as `propname: initial;` to negate inheritance).
+    // properties (emitted as `propname: initial;` to negate inheritance), then
+    // anything typed into a `style` attribute. That goes last because later
+    // declarations win in inline CSS: typing the attribute by hand is the more
+    // deliberate act, so it should override the css block rather than be
+    // dropped by it.
     {
         let mut decls: Vec<String> = Vec::new();
         if let Some(css) = &cfg.css {
@@ -265,6 +290,13 @@ pub fn render_node(
             let p = prop.trim();
             if !p.is_empty() {
                 decls.push(format!("{}: initial;", p));
+            }
+        }
+        if let Some(s) = attr_style {
+            let s = substitute_vars(s, vars);
+            let t = s.trim();
+            if !t.is_empty() {
+                decls.push(t.to_string());
             }
         }
         if !decls.is_empty() {
@@ -300,14 +332,17 @@ pub fn render_node(
         tag == "head" && extra_head_styles.map(|s| !s.trim().is_empty()).unwrap_or(false);
     let inject_head_tags =
         tag == "head" && extra_head_tags.map(|s| !s.trim().is_empty()).unwrap_or(false);
-    let has_head_links = tag == "head" && !cfg.links.is_empty();
+    // Any element carrying links emits them. Gating this on <head> meant a
+    // links: entry configured anywhere else vanished from the build without a
+    // word, which is the worst way for configured data to behave.
+    let has_links = !cfg.links.is_empty();
     let inject_scripts_here = tag == "body";
 
     if has_content
         || has_children
         || inject_styles
         || inject_head_tags
-        || has_head_links
+        || has_links
         || inject_scripts_here
     {
         // The newline after an opening tag is layout, not content — and HTML
@@ -328,7 +363,7 @@ pub fn render_node(
             }
         }
 
-        if has_head_links {
+        if has_links {
             for link in &cfg.links {
                 out.push_str(&"  ".repeat(depth + 1));
                 out.push_str(&format!(

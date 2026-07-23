@@ -7504,7 +7504,7 @@ function BugReportModal(props: {
           </pre>
           <p className="bug-note">
             {t(
-              "File paths are redacted, but the issue tracker is public — check the text above before sending."
+              "Paths containing your account name are replaced with [REDACTED] (shown in green above). The issue tracker is public, so check the text before sending."
             )}
           </p>
 

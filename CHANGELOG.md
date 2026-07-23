@@ -6,6 +6,26 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **HTML export no longer drops a typed `id`, `class` or `style`.** Each of these
+  can come from its own field or from a key typed into the attribute box, and
+  emitting both wrote the attribute twice — HTML keeps the first, so the second
+  source vanished. Most visibly, a `style` typed into attributes suppressed the
+  element's whole CSS block. They are merged now: classes combine, and a typed
+  `style` is appended after the CSS block so it wins, as hand-writing it implies.
+- **A `links:` entry outside `<head>` is emitted** instead of being silently
+  discarded. It was gated on the element being `<head>`.
+- **Search highlight is legible again.** The dark-amber background left the
+  highlighted text hard to read, especially on the light CSS-tab sections. It is
+  now a bright amber with near-black text, which reads on both the dark editors
+  and the light sections.
+
+### Changed
+- **The bug-report redaction marker is clearer.** A removed path now reads
+  `[REDACTED]` rather than `[HOME]` (which looked like it might be a real path),
+  and the dialog explains that it stands in for paths containing your account
+  name.
+
 ## [0.12.6] - 2026-07-23
 
 ### Changed

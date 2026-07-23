@@ -964,6 +964,61 @@ mod tests {
     }
 
     #[test]
+    fn typed_id_class_style_do_not_produce_duplicate_attributes() {
+        // id, class and style can each come from a dedicated field or from a
+        // key typed into the attribute map. Emitting both wrote the attribute
+        // twice, and HTML keeps the *first* — so the second source was silently
+        // dropped. Most visibly a typed `style` used to suppress the css block.
+        let dir = std::env::temp_dir().join(format!(
+            "foling_dupattr_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        init_project(dir.to_string_lossy().into_owned(), None).unwrap();
+        let body = dir.join(HTML_ROOT).join("02_body");
+
+        let el = body.join("01_div");
+        fs::create_dir_all(&el).unwrap();
+        fs::write(
+            el.join(CONFIG_FILE),
+            "attributes:\n  style: 'color: red;'\n  class: typed\nclasses:\n  - real\ncss: |\n  padding: 8px;\n",
+        )
+        .unwrap();
+
+        // A link on a non-<head> element must still be emitted.
+        let linked = body.join("02_div");
+        fs::create_dir_all(&linked).unwrap();
+        fs::write(
+            linked.join(CONFIG_FILE),
+            "links:\n- rel: stylesheet\n  href: /x.css\n",
+        )
+        .unwrap();
+
+        let html = generate_html(&dir, false).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+
+        // Exactly one of each attribute on the div.
+        let div_line = html
+            .lines()
+            .find(|l| l.contains("id=\"2\""))
+            .unwrap_or("");
+        assert_eq!(div_line.matches(" style=").count(), 1, "one style: {div_line}");
+        assert_eq!(div_line.matches(" class=").count(), 1, "one class: {div_line}");
+        // css and the typed style are merged, css first so the typed one wins.
+        assert!(div_line.contains("padding: 8px; color: red;"), "{div_line}");
+        // typed class merges with the class list.
+        assert!(div_line.contains("class=\"real typed\""), "{div_line}");
+        // Link emitted outside <head>.
+        assert!(
+            html.contains("<link rel=\"stylesheet\" href=\"/x.css\" />"),
+            "link on a non-head element must be emitted:\n{html}"
+        );
+    }
+
+    #[test]
     fn module_def_css_defaults_when_missing() {
         // Older / hand-written module files may omit `css:` — it must default
         // to empty rather than failing to parse.
