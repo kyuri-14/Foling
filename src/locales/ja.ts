@@ -194,8 +194,8 @@ export const ja: LocaleDict = {
 
   // Keyboard shortcuts modal
   "Keyboard shortcuts": "キーボードショートカット",
-  "macOS: Ctrl = Cmd. Delete element: Cmd+Backspace. Letter shortcuts take ⌘+⌥ because Option+letter types a character.":
-    "macOS では Ctrl = Cmd で動作します。要素の削除は Cmd+Backspace。文字キーのショートカットは ⌘+⌥ です（Option+文字は文字入力になるため）。",
+  "Letter shortcuts take ⌘⌥ rather than ⌥ alone, because Option+letter types a character on macOS.":
+    "文字キーのショートカットは ⌥ 単独ではなく ⌘⌥ です（macOS では Option+文字が文字入力になるため）。",
   "Save (tree / selected element / class file)":
     "保存 (ツリー / 選択要素 / クラスファイル)",
   Undo: "元に戻す",

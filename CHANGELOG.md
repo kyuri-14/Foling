@@ -6,6 +6,23 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.10] - 2026-08-06
+
+### Fixed
+- **Moving through the tree with ↑/↓ always highlights the row it lands on.**
+  The highlight followed the row's id, which re-reading the tree can retire when
+  a folder was renamed — leaving the element selected but nothing lit up. It now
+  falls back to the selected element's path when the id no longer resolves, and
+  is released when the caret leaves the tree, so the two signals cover each
+  other rather than either being trusted alone.
+
+### Changed
+- **The keyboard shortcut list is written in the host platform's own keys.**
+  macOS now reads `⌘S`, `⌘⌥T`, `⌘⌫`, `⌥⇧↑` and so on, instead of listing
+  Windows chords with a footnote to translate them. The one remaining note
+  explains the only chord that isn't a straight translation: letter shortcuts
+  take `⌘⌥` because `⌥`+letter types a character on macOS.
+
 ## [0.12.9] - 2026-08-05
 
 ### Added

@@ -121,7 +121,7 @@ const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
 // here than pulling in the OS plugin just to answer one question.
 const IS_MAC = navigator.userAgent.includes("Macintosh");
 // Keep in sync with package.json / tauri.conf.json on release.
-const APP_VERSION = "0.12.9";
+const APP_VERSION = "0.12.10";
 // Set to the public repository URL once published (shown in the About dialog).
 const REPO_URL = "https://github.com/kyuri-14/Foling";
 
@@ -4475,20 +4475,19 @@ function TreeEditorPanel(props: {
 
   const visible = useMemo(() => getVisibleRows(props.rows), [props.rows]);
 
-  // Only when the incoming path actually changes. `rows` is in the dependency
-  // list because the matching row may not exist yet when the path first
-  // arrives — but re-running on every keystroke must not drag the highlight
-  // back to the previously selected element while a new row is being typed.
-  const syncedPath = useRef<string | null>(null);
-  useEffect(() => {
-    const path = props.selectedPath;
-    if (!path || path === syncedPath.current) return;
-    const row = props.rows.find((r) => r.actualPath === path);
-    if (row) {
-      syncedPath.current = path;
-      setActiveRowId(row.id);
+  // The highlighted row: whichever holds the caret, and failing that the row
+  // for the selected element. Both signals are needed because neither survives
+  // every case on its own — a row that has just been typed has no path yet, and
+  // re-reading the tree can hand a row a new id when its folder was renamed —
+  // so each covers the other's blind spot.
+  const activeIndex = useMemo(() => {
+    if (activeRowId) {
+      const byId = props.rows.findIndex((r) => r.id === activeRowId);
+      if (byId >= 0) return byId;
     }
-  }, [props.selectedPath, props.rows]);
+    if (!props.selectedPath) return -1;
+    return props.rows.findIndex((r) => r.actualPath === props.selectedPath);
+  }, [props.rows, activeRowId, props.selectedPath]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -4819,6 +4818,10 @@ function TreeEditorPanel(props: {
   //     the rename so the disk folder NN_<tag> updates and the right-pane
   //     stays pointed at the right element.
   function handleRowCommit(rowIndex: number) {
+    // This is the blur handler, so the caret has left the tree regardless of
+    // what the row turns out to hold. Release the highlight to the selected
+    // element rather than pinning it to a row id that a re-read may retire.
+    setActiveRowId(null);
     const r = props.rows[rowIndex];
     if (!r || r.name.trim() === "") return;
     // A `.…` row is a module reference, not a tag. On blur, expand it if it
@@ -4863,7 +4866,7 @@ function TreeEditorPanel(props: {
               linePad={linePad}
               hasChildren={hasChildren}
               unknownTag={!isKnownTag(row.name)}
-              selected={row.id === activeRowId}
+              selected={index === activeIndex}
               highlightSource={
                 !!row.actualPath &&
                 row.actualPath !== props.selectedPath &&
@@ -7303,41 +7306,47 @@ function SettingsModal(props: {
   );
 }
 
-// Letter shortcuts take Cmd+Option on macOS, where plain Option+letter is a
-// character the webview inserts regardless of preventDefault. Arrow shortcuts
-// keep plain Option everywhere — arrows produce no text.
-const MOD_LETTER = IS_MAC ? "⌘+⌥" : "Alt";
-const MOD_ARROW = IS_MAC ? "⌥" : "Alt";
+// Shortcut notation follows the host platform: macOS spells modifiers with
+// glyphs and no separators, Windows and Linux spell them out. Letter chords
+// need Cmd on macOS because Option+letter is a character there — see the
+// keyboard handler for why that cannot simply be suppressed.
+const MOD = IS_MAC ? "⌘" : "Ctrl+";
+const MOD_LETTER = IS_MAC ? "⌘⌥" : "Alt+";
+const MOD_ARROW = IS_MAC ? "⌥" : "Alt+";
+const SHIFT = IS_MAC ? "⇧" : "Shift+";
 
 const SHORTCUTS: { keys: string; desc: string }[] = [
-  { keys: "Ctrl+S", desc: "Save (tree / selected element / class file)" },
-  { keys: "Ctrl+Z", desc: "Undo" },
-  { keys: "Ctrl+Y / Ctrl+Shift+Z", desc: "Redo" },
+  { keys: `${MOD}S`, desc: "Save (tree / selected element / class file)" },
+  { keys: `${MOD}Z`, desc: "Undo" },
+  { keys: `${MOD}Y / ${MOD}${SHIFT}Z`, desc: "Redo" },
+  { keys: `${MOD}F / ${MOD}${SHIFT}F`, desc: "Search in project" },
+  { keys: `${MOD_LETTER}T`, desc: "Toggle the element editor (text / image)" },
   {
-    keys: IS_MAC ? "⌘F / ⌘⇧F" : "Ctrl+F / Ctrl+Shift+F",
-    desc: "Search in project",
+    keys: IS_MAC ? "⌘⌫" : "Shift+Delete",
+    desc: "Delete the selected element and its subtree",
   },
-  { keys: `${MOD_LETTER}+T`, desc: "Toggle the element editor (text / image)" },
-  { keys: "Shift+Delete", desc: "Delete the selected element and its subtree" },
-  { keys: `${MOD_LETTER}+S`, desc: "Edit the selected element's CSS" },
-  { keys: `${MOD_LETTER}+C`, desc: "Go to the CLASSES tab" },
-  { keys: `${MOD_LETTER}+J`, desc: "Edit the selected element's SCRIPT" },
-  { keys: `${MOD_LETTER}+R`, desc: "RUN (open preview)" },
-  { keys: `${MOD_LETTER}+Shift+R`, desc: "DEV (click-to-edit preview)" },
-  { keys: `${MOD_ARROW}+↑ / ↓`, desc: "Move the selection up / down a row" },
+  { keys: `${MOD_LETTER}S`, desc: "Edit the selected element's CSS" },
+  { keys: `${MOD_LETTER}C`, desc: "Go to the CLASSES tab" },
+  { keys: `${MOD_LETTER}J`, desc: "Edit the selected element's SCRIPT" },
+  { keys: `${MOD_LETTER}R`, desc: "RUN (open preview)" },
+  { keys: `${MOD_LETTER}${SHIFT}R`, desc: "DEV (click-to-edit preview)" },
+  { keys: `${MOD_ARROW}↑ / ↓`, desc: "Move the selection up / down a row" },
   {
-    keys: `${MOD_ARROW}+←`,
+    keys: `${MOD_ARROW}←`,
     desc: "Select the parent (from the editor: jump to the tag)",
   },
-  { keys: `${MOD_ARROW}+→`, desc: "Select the next sibling (wraps)" },
+  { keys: `${MOD_ARROW}→`, desc: "Select the next sibling (wraps)" },
   { keys: "Enter", desc: "Tree: add a child element" },
-  { keys: "Shift+Enter", desc: "Tree: add a sibling / outdent an empty row" },
-  { keys: "Tab / Shift+Tab", desc: "Tree: indent / outdent" },
+  { keys: `${SHIFT}Enter`, desc: "Tree: add a sibling / outdent an empty row" },
+  { keys: `Tab / ${SHIFT}Tab`, desc: "Tree: indent / outdent" },
   { keys: "Backspace (empty row)", desc: "Tree: outdent / delete the row" },
   { keys: "↑ / ↓", desc: "Tree: move between rows" },
-  { keys: `${MOD_ARROW}+Shift+↑ / ↓`, desc: "Tree: reorder the selected row" },
-  { keys: `${MOD_ARROW}+Shift+← / →`, desc: "Tree: outdent / indent" },
-  { keys: "Ctrl+C / Ctrl+V", desc: "Tree: copy / paste an element with its subtree" },
+  { keys: `${MOD_ARROW}${SHIFT}↑ / ↓`, desc: "Tree: reorder the selected row" },
+  { keys: `${MOD_ARROW}${SHIFT}← / →`, desc: "Tree: outdent / indent" },
+  {
+    keys: `${MOD}C / ${MOD}V`,
+    desc: "Tree: copy / paste an element with its subtree",
+  },
   { keys: "Esc", desc: "Close dialog / autocomplete" },
 ];
 
@@ -7359,11 +7368,16 @@ function ShortcutsModal(props: { onClose: () => void }) {
           </button>
         </div>
         <div className="shortcuts-body">
-          <div className="shortcuts-note">
-            {t(
-              "macOS: Ctrl = Cmd. Delete element: Cmd+Backspace. Letter shortcuts take ⌘+⌥ because Option+letter types a character."
-            )}
-          </div>
+          {/* The table already lists this platform's own keys, so the only
+              thing left to explain is the one chord that isn't the obvious
+              translation of its Windows counterpart. */}
+          {IS_MAC && (
+            <div className="shortcuts-note">
+              {t(
+                "Letter shortcuts take ⌘⌥ rather than ⌥ alone, because Option+letter types a character on macOS."
+              )}
+            </div>
+          )}
           <table>
             <tbody>
               {SHORTCUTS.map((s) => (
