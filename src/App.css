@@ -3277,3 +3277,224 @@ button.secondary {
   padding: 0 3px;
   font-weight: 700;
 }
+
+/* ========== MODULES tab ========== */
+.tab-modules.active {
+  border-bottom-color: #00b8a9;
+}
+
+.modules-tab {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: 100%;
+  min-height: 0;
+  background: var(--c-editor-bg);
+}
+
+.modules-tab > .editor-empty {
+  grid-column: 1 / -1;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modules-hint {
+  max-width: 42ch;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: #6b7a6e;
+}
+
+.modules-list {
+  border-right: 1px solid #cfe5d3;
+  overflow: auto;
+  min-height: 0;
+}
+
+.modules-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #4a6b52;
+  border-bottom: 1px solid #cfe5d3;
+}
+
+.modules-list-head button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1rem;
+  color: #4a6b52;
+}
+
+.modules-file-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 4px;
+  font-size: 0.74rem;
+  color: #8a9a8d;
+  font-family: var(--font-mono);
+}
+
+.modules-file-del {
+  border: none;
+  background: transparent;
+  color: #b0b8b2;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0 2px;
+}
+
+.modules-file-del:hover {
+  color: #c0392b;
+}
+
+.modules-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 10px 6px 16px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  color: var(--c-editor-text);
+}
+
+.modules-item:hover {
+  background: #e3f5e8;
+}
+
+.modules-item.active {
+  background: #c9ead3;
+  font-weight: 700;
+}
+
+/* Element count: says how much page this module will stamp out. */
+.modules-item-count {
+  font-size: 0.72rem;
+  color: #7d8f82;
+  font-family: var(--font-ui);
+}
+
+.modules-detail {
+  overflow: auto;
+  min-height: 0;
+  padding: 12px 16px;
+}
+
+.modules-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modules-detail-name {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.modules-expand {
+  padding: 6px 16px;
+  border: 1px solid var(--c-run);
+  border-radius: 6px;
+  background: var(--c-run);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.84rem;
+}
+
+.modules-expand:disabled {
+  background: transparent;
+  border-color: #c3d6c7;
+  color: #9aa89d;
+  cursor: default;
+}
+
+.modules-detail-note {
+  margin: 8px 0 4px;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: #6b7a6e;
+}
+
+.modules-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #4a6b52;
+}
+
+.modules-js-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #2d2d3a;
+  color: #ffd54f;
+  font-size: 0.68rem;
+  letter-spacing: 0;
+}
+
+/* The captured subtree, indented the way it will appear in the DOM tree. */
+.modules-outline {
+  border: 1px solid #cfe5d3;
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 6px 0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.modules-outline-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 2px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.modules-outline-tag {
+  color: #134018;
+  font-weight: 700;
+}
+
+.modules-outline-classes {
+  color: #7a4fb5;
+}
+
+.modules-outline-content {
+  color: #8a9a8d;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modules-css {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 4px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre;
+  user-select: text;
+}
+
+.modules-empty-css {
+  padding: 10px 12px;
+  border: 1px dashed #cfe5d3;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  color: #8a9a8d;
+}

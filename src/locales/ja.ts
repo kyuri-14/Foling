@@ -237,6 +237,27 @@ export const ja: LocaleDict = {
     "変数がありません。「＋ 変数を追加」で 1 つ作成してください。",
   "＋ Add variable": "＋ 変数を追加",
 
+  // MODULES tab
+  Modules: "モジュール",
+  "No modules in this project.": "このプロジェクトにモジュールはありません。",
+  "Right-click an element in the tree and choose “Register as module” to capture it, or import a module file.":
+    "ツリーで要素を右クリックして「モジュールとして登録」を選ぶか、モジュールファイルを読み込んでください。",
+  "Delete this module file": "このモジュールファイルを削除",
+  "Delete this module file?": "このモジュールファイルを削除しますか?",
+  "Modules it defines:": "定義されているモジュール数:",
+  "Deleted module file:": "モジュールファイルを削除しました:",
+  "Expand here": "ここに展開",
+  "Expand into the selected element": "選択中の要素に展開します",
+  "Select an element in the tree first": "先にツリーで要素を選択してください",
+  "Expanded module:": "モジュールを展開しました:",
+  "Expanding copies these elements into the page. Editing the module later does not change copies already expanded.":
+    "展開すると、これらの要素がページに複製されます。あとからモジュールを編集しても、展開済みのものは変わりません。",
+  Structure: "構造",
+  "Bundled CSS": "同梱 CSS",
+  "has script": "スクリプトあり",
+  "This module bundles no class definitions.":
+    "このモジュールにクラス定義は同梱されていません。",
+
   // Bug report
   "Report a bug": "バグを報告",
   "Report a bug...": "バグを報告...",

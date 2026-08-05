@@ -6,6 +6,29 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.9] - 2026-08-05
+
+### Added
+- **MODULES tab.** A module is a captured subtree plus the class definitions it
+  uses, and the only way to find out what one contained was to expand it and
+  look. The tab lists every module with its element count and shows the one you
+  pick: its structure (tags, classes, text, indented as it will appear), its
+  bundled CSS, and whether any element in it carries script. **Expand here**
+  stamps it in as a child of the selected element, and the panel says plainly
+  that expanding copies — editing the module later does not change copies
+  already made.
+
+### Fixed
+- **New project now opens the project it just created.** Creation stopped to ask
+  for the DOCTYPE through `window.prompt`, which a webview does not always
+  implement; where it doesn't the call returns null and the whole flow gave up
+  without a word, so "New project" appeared to do nothing while "Open project"
+  on the same folder worked. It uses the default DOCTYPE, which VIEW → Edit
+  DOCTYPE can change afterwards.
+- **Clicking a tree row always highlights it.** The highlight was keyed off the
+  row's path on disk, so a row that had just been typed — which has no path yet
+  — lit nothing up. It follows the row itself now.
+
 ## [0.12.8] - 2026-07-24
 
 ### Fixed

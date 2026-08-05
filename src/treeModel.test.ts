@@ -8,7 +8,10 @@ import {
   findSubtreeRange,
   getVisibleRows,
   lineNumPad,
+  countSnapshotNodes,
+  moduleOutline,
   nnOf,
+  snapshotHasScript,
   rowsToParsedTree,
   sanitizeTagForFolder,
 } from "./treeModel";
@@ -195,6 +198,71 @@ describe("rowsToParsedTree", () => {
       row("n", 1, "main"),
     ]);
     expect(ordinals(tree[0].children)).toEqual(["header", "01_main"]);
+  });
+});
+
+describe("module snapshots", () => {
+  // Shaped like the shipped drawermenu module: a root with classes, a child
+  // carrying script, and a grandchild with text.
+  const snap = {
+    name: "01_div",
+    config: { classes: ["drawer"] },
+    children: [
+      {
+        name: "01_button",
+        config: { js: "el.addEventListener('click', () => {});" },
+        children: [],
+      },
+      {
+        name: "02_nav",
+        config: { classes: ["drawer-panel", "is-open"] },
+        children: [
+          { name: "01_a", config: { content: "  Home  " }, children: [] },
+        ],
+      },
+    ],
+  };
+
+  it("flattens the subtree in expansion order, with depths", () => {
+    expect(moduleOutline(snap).map((r) => [r.depth, r.tag])).toEqual([
+      [0, "div"],
+      [1, "button"],
+      [1, "nav"],
+      [2, "a"],
+    ]);
+  });
+
+  it("surfaces classes and trimmed text for each row", () => {
+    const rows = moduleOutline(snap);
+    expect(rows[0].classes).toEqual(["drawer"]);
+    expect(rows[2].classes).toEqual(["drawer-panel", "is-open"]);
+    expect(rows[3].content).toBe("Home");
+    expect(rows[1].content).toBeUndefined();
+  });
+
+  it("counts every element the module will add", () => {
+    expect(countSnapshotNodes(snap)).toBe(4);
+    expect(countSnapshotNodes({ name: "01_div" })).toBe(1);
+  });
+
+  it("finds script anywhere in the subtree", () => {
+    expect(snapshotHasScript(snap)).toBe(true);
+    expect(snapshotHasScript(snap.children[1])).toBe(false);
+  });
+
+  it("does not mistake the word js in text or a class for script", () => {
+    // The obvious shortcut — searching the serialised snapshot for "js" —
+    // reports these as scripted.
+    expect(
+      snapshotHasScript({
+        name: "01_p",
+        config: { classes: ["js-toggle"], content: 'about "js" files' },
+      })
+    ).toBe(false);
+    // Whitespace-only js is not script either.
+    expect(
+      snapshotHasScript({ name: "01_p", config: { js: "   \n " } })
+    ).toBe(false);
   });
 });
 

@@ -184,6 +184,62 @@ function assignFolderNames(parent: ParsedNode): void {
   }
 }
 
+// ---------- Module snapshots ----------
+//
+// A module is a captured subtree, and the MODULES tab has to describe one
+// before the user commits to stamping it into the page. These read a snapshot
+// without needing the disk, which is also what makes them testable.
+
+/** Minimal shape of a captured subtree — matches NodeSnapshot in types.ts. */
+export interface SnapshotLike {
+  name: string;
+  config?: {
+    classes?: string[];
+    content?: string;
+    js?: string;
+  };
+  children?: SnapshotLike[];
+}
+
+export interface OutlineRow {
+  depth: number;
+  tag: string;
+  classes: string[];
+  content?: string;
+}
+
+/** Flatten a snapshot into indented rows, the way it will look once expanded. */
+export function moduleOutline(
+  snap: SnapshotLike,
+  depth = 0,
+  out: OutlineRow[] = []
+): OutlineRow[] {
+  const c = snap.config ?? {};
+  out.push({
+    depth,
+    tag: snap.name.replace(/^\d+_/, ""),
+    classes: c.classes ?? [],
+    content: c.content?.trim() || undefined,
+  });
+  for (const child of snap.children ?? []) moduleOutline(child, depth + 1, out);
+  return out;
+}
+
+/** How many elements expanding this module will add. */
+export function countSnapshotNodes(snap: SnapshotLike): number {
+  return (
+    1 + (snap.children ?? []).reduce((n, c) => n + countSnapshotNodes(c), 0)
+  );
+}
+
+/** Whether any element in the subtree carries per-element JavaScript. Walks the
+ *  tree rather than searching the serialised snapshot for `"js"`, which would
+ *  also match a class or a piece of text that happened to contain it. */
+export function snapshotHasScript(snap: SnapshotLike): boolean {
+  if ((snap.config?.js ?? "").trim() !== "") return true;
+  return (snap.children ?? []).some(snapshotHasScript);
+}
+
 /** Filter out rows that live under a collapsed ancestor. */
 export function getVisibleRows(rows: FlatRow[]): VisibleRow[] {
   const out: VisibleRow[] = [];

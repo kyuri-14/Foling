@@ -14,6 +14,7 @@ import {
   createNode,
   deleteClassFile,
   deleteNode,
+  deleteModuleFile,
   importModuleFile,
   pickModuleFile,
   readModules,
@@ -60,6 +61,9 @@ import {
   nnOf,
   rowMetaFromConfig,
   rowsToParsedTree,
+  moduleOutline,
+  countSnapshotNodes,
+  snapshotHasScript,
 } from "./treeModel";
 import { countMatches, highlight, markMatches } from "./syntax";
 import {
@@ -93,7 +97,7 @@ import {
   UndoAction,
 } from "./types";
 
-type TabKey = "css" | "js" | "classes";
+type TabKey = "css" | "js" | "classes" | "modules";
 
 // AI agent CLIs launchable out of the box (PLUGINS menu). Each runs in the
 // OS terminal with the project folder as cwd — HTFL is plain folders + YAML,
@@ -117,7 +121,7 @@ const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
 // here than pulling in the OS plugin just to answer one question.
 const IS_MAC = navigator.userAgent.includes("Macintosh");
 // Keep in sync with package.json / tauri.conf.json on release.
-const APP_VERSION = "0.12.8";
+const APP_VERSION = "0.12.9";
 // Set to the public repository URL once published (shown in the About dialog).
 const REPO_URL = "https://github.com/kyuri-14/Foling";
 
@@ -2501,6 +2505,56 @@ export default function App() {
   // placeholder folder, restore the module subtree under the same parent, and
   // inject any missing class definitions. Serialized through the paste chain so
   // it can't race a concurrent paste/expand.
+  // Expand a module as a child of the selected element. Typing `.name` in the
+  // tree does the same thing at a placeholder row; this is the path from the
+  // MODULES tab, where the module is picked from a list instead of recalled by
+  // name — the reason that tab exists is that nobody can be expected to
+  // remember what a module contains.
+  function expandModuleIntoSelected(moduleName: string) {
+    if (!projectRoot || !selectedPath) return;
+    const mod = modules.find((m) => m.name === moduleName);
+    if (!mod) {
+      setInfo(`${t("Module not found:")} ${moduleName}`);
+      return;
+    }
+    const parent = selectedPath;
+    const root = projectRoot;
+    pasteChainRef.current = pasteChainRef.current
+      .catch(() => {})
+      .then(async () => {
+        const fresh = await readTree(root);
+        const parentNd = findNodeByPath(fresh, parent);
+        if (!parentNd) {
+          setError(t("Could not determine the parent folder"));
+          return;
+        }
+        const used = new Set<number>();
+        for (const c of parentNd.children) {
+          const n = nnOf(basenameOf(c.path));
+          if (n != null) used.add(n);
+        }
+        let next = 1;
+        for (const n of used) if (n >= next) next = n + 1;
+        const tagPart = mod.snapshot.name.replace(/^\d+_/, "");
+        const renamed: NodeSnapshot = {
+          ...mod.snapshot,
+          name: `${String(next).padStart(2, "0")}_${tagPart}`,
+        };
+        const newPath = await restoreSubtree(parent, renamed);
+        await injectModuleClasses(mod.name, mod.css);
+        pushUndo({ type: "create", path: newPath });
+        const tNext = await readTree(root);
+        setTree(tNext);
+        setRows((cur) => syncRowsFromTree(getViewRoot(tNext, treeView), cur));
+        setTreeDirty(false);
+        setSelectedPath(newPath);
+        setHighlightSourcePath(null);
+        scheduleRebuild();
+        setInfo(`${t("Expanded module:")} ${mod.name}`);
+      })
+      .catch((e) => setError(String(e)));
+  }
+
   function expandModuleIntoRow(row: FlatRow, moduleName: string) {
     if (!projectRoot) return;
     const mod = modules.find((m) => m.name === moduleName);
@@ -2582,6 +2636,30 @@ export default function App() {
       const name = await importModuleFile(projectRoot, src);
       await reloadModules();
       setInfo(`${t("Imported module file:")} ${name}`);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  // Delete a whole module file. Confirmed first: this removes every module the
+  // file defines, and elements already expanded from them are unaffected — so
+  // the loss is the recipe, not the page.
+  async function removeModuleFile(fileName: string) {
+    if (!projectRoot) return;
+    const file = moduleFiles.find((f) => f.name === fileName);
+    const count = file?.modules.length ?? 0;
+    if (
+      !window.confirm(
+        `${t("Delete this module file?")}\n${fileName}\n` +
+          `${t("Modules it defines:")} ${count}`
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteModuleFile(projectRoot, fileName);
+      await reloadModules();
+      setInfo(`${t("Deleted module file:")} ${fileName}`);
     } catch (e) {
       setError(String(e));
     }
@@ -2732,13 +2810,14 @@ export default function App() {
   async function newProjectFlow() {
     const sel = await pickProjectFolder();
     if (!sel) return;
-    const doctype = window.prompt(
-      "Enter the DOCTYPE declaration",
-      DEFAULT_DOCTYPE
-    );
-    if (doctype == null) return;
+    // Creation used to stop and ask for the DOCTYPE first. A webview does not
+    // always implement window.prompt — where it doesn't, the call returns null
+    // and this whole flow bailed out silently, so "New project" appeared to do
+    // nothing while "Open project" on the same folder worked. The default is
+    // right for essentially every page and VIEW → Edit DOCTYPE can change it
+    // later, so there is nothing to ask about up front.
     try {
-      await initProject(sel, doctype || DEFAULT_DOCTYPE);
+      await initProject(sel, DEFAULT_DOCTYPE);
       await openProject(sel);
       setInfo(`Project created: ${sel}`);
     } catch (e) {
@@ -3664,6 +3743,10 @@ export default function App() {
             classFileDirty={classFileDirty}
             onAddClassFile={addClassFile}
             onDeleteClassFile={removeClassFile}
+            moduleFiles={moduleFiles}
+            onExpandModuleIntoSelected={expandModuleIntoSelected}
+            onImportModule={importModuleFlow}
+            onDeleteModuleFile={removeModuleFile}
             onToggleClass={toggleClassOnElement}
             onDeleteClassFromElement={deleteClassFromElement}
             onToggleAvailableClass={toggleAvailableClass}
@@ -4382,8 +4465,30 @@ function TreeEditorPanel(props: {
   // One-shot focus request — set when an action wants a specific row's
   // input to gain focus on the next render.
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
+  // Which row reads as selected. Tracked by row id rather than by disk path,
+  // because a row that has just been typed has no path yet — keying the
+  // highlight off the path meant clicking such a row lit nothing up, which is
+  // the "sometimes it doesn't highlight" everyone runs into right after adding
+  // an element. Selections that arrive from outside (the dev preview, the
+  // breadcrumb) come in as a path and are resolved back to a row below.
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
 
   const visible = useMemo(() => getVisibleRows(props.rows), [props.rows]);
+
+  // Only when the incoming path actually changes. `rows` is in the dependency
+  // list because the matching row may not exist yet when the path first
+  // arrives — but re-running on every keystroke must not drag the highlight
+  // back to the previously selected element while a new row is being typed.
+  const syncedPath = useRef<string | null>(null);
+  useEffect(() => {
+    const path = props.selectedPath;
+    if (!path || path === syncedPath.current) return;
+    const row = props.rows.find((r) => r.actualPath === path);
+    if (row) {
+      syncedPath.current = path;
+      setActiveRowId(row.id);
+    }
+  }, [props.selectedPath, props.rows]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -4699,6 +4804,10 @@ function TreeEditorPanel(props: {
 
   function handleRowFocus(rowIndex: number) {
     const r = props.rows[rowIndex];
+    // Light the row up straight away. The parent may still have to flush the
+    // tree before this row has a path to select, but the highlight is about
+    // where the caret is, not about what is on disk.
+    setActiveRowId(r.id);
     // Defer to the parent — it knows whether a not-yet-applied row needs
     // a tree flush before it can be selected.
     props.onSelectRow(r);
@@ -4754,9 +4863,7 @@ function TreeEditorPanel(props: {
               linePad={linePad}
               hasChildren={hasChildren}
               unknownTag={!isKnownTag(row.name)}
-              selected={
-                !!row.actualPath && row.actualPath === props.selectedPath
-              }
+              selected={row.id === activeRowId}
               highlightSource={
                 !!row.actualPath &&
                 row.actualPath !== props.selectedPath &&
@@ -5048,6 +5155,10 @@ function EditorPanel(props: {
   setActiveTab: (t: TabKey) => void;
   /** Title-bar search term, marked in whichever code editor is open. */
   find?: string;
+  moduleFiles: ModuleFile[];
+  onExpandModuleIntoSelected: (name: string) => void;
+  onImportModule: () => void;
+  onDeleteModuleFile: (fileName: string) => void;
   config: NodeConfig;
   update: <K extends keyof NodeConfig>(k: K, v: NodeConfig[K]) => void;
   onRun: () => void;
@@ -5124,6 +5235,14 @@ function EditorPanel(props: {
         >
           CLASSES
         </button>
+        <button
+          className={`tab tab-modules ${
+            props.activeTab === "modules" ? "active" : ""
+          }`}
+          onClick={() => props.setActiveTab("modules")}
+        >
+          MODULES
+        </button>
         <span className="dirty-indicator">
           {(props.activeTab === "classes" ? props.classFileDirty : props.dirty)
             ? t("● unsaved")
@@ -5183,6 +5302,15 @@ function EditorPanel(props: {
             appliedClassNames={props.appliedClassNames}
             onToggleAvailable={props.onToggleAvailableClass}
             hasSelectedElement={!!props.selectedPath}
+            find={props.find}
+          />
+        ) : props.activeTab === "modules" ? (
+          <ModulesTab
+            files={props.moduleFiles}
+            hasSelectedElement={!!props.selectedPath}
+            onExpand={props.onExpandModuleIntoSelected}
+            onImport={props.onImportModule}
+            onDeleteFile={props.onDeleteModuleFile}
             find={props.find}
           />
         ) : (
@@ -7771,6 +7899,162 @@ function ImagesTab(props: {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// MODULES tab. A module is a captured subtree plus the class definitions it
+// uses, and until now the only way to find out what one contained was to expand
+// it and look — so this shows the structure, the bundled CSS and any per-element
+// script before you commit to stamping it into the page.
+function ModulesTab(props: {
+  files: ModuleFile[];
+  hasSelectedElement: boolean;
+  onExpand: (name: string) => void;
+  onImport: () => void;
+  onDeleteFile: (fileName: string) => void;
+  find?: string;
+}) {
+  const all = props.files.flatMap((f) =>
+    f.modules.map((m) => ({ file: f.name, mod: m }))
+  );
+  const [selected, setSelected] = useState<string | null>(
+    all[0]?.mod.name ?? null
+  );
+  const current = all.find((x) => x.mod.name === selected) ?? all[0] ?? null;
+
+  if (all.length === 0) {
+    return (
+      <div className="modules-tab">
+        <div className="editor-empty">
+          <p>{t("No modules in this project.")}</p>
+          <p className="modules-hint">
+            {t(
+              "Right-click an element in the tree and choose “Register as module” to capture it, or import a module file."
+            )}
+          </p>
+          <button onClick={props.onImport}>{t("Import module file...")}</button>
+        </div>
+      </div>
+    );
+  }
+
+  const outline = current ? moduleOutline(current.mod.snapshot) : [];
+  const scripted = current ? snapshotHasScript(current.mod.snapshot) : false;
+
+  return (
+    <div className="modules-tab">
+      <div className="modules-list">
+        <div className="modules-list-head">
+          <span>{t("Modules")}</span>
+          <button onClick={props.onImport} title={t("Import module file...")}>
+            ＋
+          </button>
+        </div>
+        {props.files.map((f) => (
+          <div key={f.name} className="modules-file">
+            <div className="modules-file-name">
+              <span>{f.name}</span>
+              <button
+                className="modules-file-del"
+                title={t("Delete this module file")}
+                onClick={() => props.onDeleteFile(f.name)}
+              >
+                ×
+              </button>
+            </div>
+            {f.modules.map((m) => (
+              <button
+                key={m.name}
+                className={`modules-item ${
+                  current?.mod.name === m.name ? "active" : ""
+                }`}
+                onClick={() => setSelected(m.name)}
+              >
+                .{m.name}
+                <span className="modules-item-count">
+                  {countSnapshotNodes(m.snapshot)}
+                </span>
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {current && (
+        <div className="modules-detail">
+          <div className="modules-detail-head">
+            <span className="modules-detail-name">.{current.mod.name}</span>
+            <button
+              className="modules-expand"
+              disabled={!props.hasSelectedElement}
+              title={
+                props.hasSelectedElement
+                  ? t("Expand into the selected element")
+                  : t("Select an element in the tree first")
+              }
+              onClick={() => props.onExpand(current.mod.name)}
+            >
+              {t("Expand here")}
+            </button>
+          </div>
+          <p className="modules-detail-note">
+            {t(
+              "Expanding copies these elements into the page. Editing the module later does not change copies already expanded."
+            )}
+          </p>
+
+          <div className="modules-section-title">
+            {t("Structure")} ({countSnapshotNodes(current.mod.snapshot)})
+          </div>
+          <div className="modules-outline">
+            {outline.map((n, i) => (
+              <div
+                key={i}
+                className="modules-outline-row"
+                style={{ paddingLeft: `${8 + n.depth * 14}px` }}
+              >
+                <span className="modules-outline-tag">
+                  {withFindMarks(n.tag, props.find ?? "")}
+                </span>
+                {n.classes.length > 0 && (
+                  <span className="modules-outline-classes">
+                    {withFindMarks("." + n.classes.join("."), props.find ?? "")}
+                  </span>
+                )}
+                {n.content && (
+                  <span className="modules-outline-content">
+                    {withFindMarks(n.content, props.find ?? "")}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="modules-section-title">
+            {t("Bundled CSS")}
+            {scripted && (
+              <span className="modules-js-badge">{t("has script")}</span>
+            )}
+          </div>
+          {current.mod.css.trim() ? (
+            <pre className="modules-css code-overlay">
+              <code
+                dangerouslySetInnerHTML={{
+                  __html: markMatches(
+                    highlight(current.mod.css, "css"),
+                    props.find ?? ""
+                  ),
+                }}
+              />
+            </pre>
+          ) : (
+            <div className="modules-empty-css">
+              {t("This module bundles no class definitions.")}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
