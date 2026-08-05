@@ -97,12 +97,13 @@ pub fn init_project(project_root: String, doctype: Option<String>) -> Result<(),
         write_yaml(&body_dir.join(CONFIG_FILE), &NodeConfig::default())?;
     }
 
-    // classes/
+    // classes/ — created empty. It used to be seeded with an 01_foundation.css
+    // that zeroed html/body margin and padding, which the built-in CSS reset
+    // (HTFL_RESET_CSS, on by default) already does — so the file was dead
+    // weight in every new project.
     let classes = root.join(CLASSES_DIR);
     if !classes.exists() {
         fs::create_dir_all(&classes).map_err(|e| e.to_string())?;
-        let stub = "/* 01_foundation.css — リセット・ベース */\n\nhtml, body {\n  margin: 0;\n  padding: 0;\n}\n";
-        fs::write(classes.join("01_foundation.css"), stub).map_err(|e| e.to_string())?;
     }
 
     // images/

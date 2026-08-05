@@ -109,18 +109,14 @@ export function nnOf(folderName: string): number | null {
 }
 
 // Convert the flat row list into the nested ParsedNode tree applyTreeDiff
-// expects. Folder-name policy is conservative on purpose:
+// expects. rowId is carried so the caller can re-select the row after apply.
 //
-//   • Matched rows (already on disk) keep their existing `NN_` prefix; only
-//     the tag part is updated. So opening a project never triggers a mass
-//     renumber of unrelated folders — which on Windows is the difference
-//     between "edit one element" and "every other handle holder (Explorer,
-//     AV, search indexer) blocks the rename with ERROR_ACCESS_DENIED".
-//
-//   • New rows take the next-available NN among their siblings (max + 1),
-//     so they slot in at the end of disk order without colliding.
-//
-// rowId is carried so the caller can re-select the row after apply.
+// Structure first, folder names second: a row's `NN_` ordinal depends on all of
+// its siblings, so it cannot be decided while still streaming through the list.
+// Assigning as we went used to hand a new row the next ordinal free *among the
+// siblings seen so far*, which duplicated the ordinal of any sibling below it —
+// and duplicates make the builder fall back to sorting by folder name, so the
+// tree silently reordered itself alphabetically on the next save.
 export function rowsToParsedTree(rows: FlatRow[]): ParsedNode[] {
   const root: ParsedNode = {
     name: "",
@@ -131,7 +127,6 @@ export function rowsToParsedTree(rows: FlatRow[]): ParsedNode[] {
   };
   const stack: ParsedNode[] = [root];
   const depths: number[] = [-1];
-  const usedNNs: Set<number>[] = [new Set()];
   rows.forEach((r, i) => {
     const name = r.name.trim();
     if (!name) return;
@@ -142,32 +137,11 @@ export function rowsToParsedTree(rows: FlatRow[]): ParsedNode[] {
     while (depths[depths.length - 1] >= depth) {
       stack.pop();
       depths.pop();
-      usedNNs.pop();
-    }
-    const used = usedNNs[usedNNs.length - 1];
-    let folderName: string;
-    if (r.actualPath) {
-      const existingBase = basenameOf(r.actualPath);
-      const existingNN = nnOf(existingBase);
-      if (existingNN != null) {
-        // Reuse the disk prefix → tag-only rename is the only possible op.
-        used.add(existingNN);
-        folderName = `${String(existingNN).padStart(2, "0")}_${sanitizeTagForFolder(name)}`;
-      } else {
-        // No NN prefix on disk — leave the folder name alone.
-        folderName = existingBase;
-      }
-    } else {
-      // Brand-new row: append at the end with max+1.
-      let next = 1;
-      for (const n of used) if (n >= next) next = n + 1;
-      used.add(next);
-      folderName = `${String(next).padStart(2, "0")}_${sanitizeTagForFolder(name)}`;
     }
     const node: ParsedNode = {
       name,
       lineIndex: i,
-      folderName,
+      folderName: "",
       actualPath: r.actualPath,
       rowId: r.id,
       children: [],
@@ -175,9 +149,39 @@ export function rowsToParsedTree(rows: FlatRow[]): ParsedNode[] {
     stack[stack.length - 1].children.push(node);
     stack.push(node);
     depths.push(depth);
-    usedNNs.push(new Set());
   });
+  assignFolderNames(root);
   return root.children;
+}
+
+// Give every child a `NN_tag` folder name whose ordinal is strictly greater
+// than its previous sibling's, so disk order (sorted by NN) always matches the
+// order shown in the editor.
+//
+// An existing ordinal is kept whenever it is already large enough, which is the
+// common case: opening a project renames nothing, and a plain edit renames only
+// what the new position actually forces. That restraint matters on Windows,
+// where every extra rename is another chance for Explorer / AV / the search
+// indexer to answer with ERROR_ACCESS_DENIED.
+function assignFolderNames(parent: ParsedNode): void {
+  let lastNN = 0;
+  for (const child of parent.children) {
+    const existingBase = child.actualPath ? basenameOf(child.actualPath) : null;
+    const existingNN = existingBase ? nnOf(existingBase) : null;
+
+    if (existingBase && existingNN == null) {
+      // Unnumbered folder on disk (e.g. plain `header`): left alone entirely,
+      // and left out of the numbering so it cannot push its siblings around.
+      child.folderName = existingBase;
+    } else {
+      const nn = existingNN != null && existingNN > lastNN ? existingNN : lastNN + 1;
+      lastNN = nn;
+      child.folderName = `${String(nn).padStart(2, "0")}_${sanitizeTagForFolder(
+        child.name
+      )}`;
+    }
+    assignFolderNames(child);
+  }
 }
 
 /** Filter out rows that live under a collapsed ancestor. */

@@ -6,6 +6,26 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.8] - 2026-07-24
+
+### Fixed
+- **The tree no longer reorders itself.** Adding an element could give it the
+  same `NN_` ordinal as a sibling below it, and equal ordinals make the builder
+  fall back to sorting by folder name — so the tree silently rearranged itself
+  alphabetically on the next save. Create `header`, then `article`, and article
+  jumped above. Ordinals are now assigned once the whole sibling list is known,
+  always strictly increasing in the order shown on screen. Existing ordinals are
+  kept whenever they already work, so opening a project still renames nothing,
+  and projects carrying duplicates from earlier versions repair themselves on
+  the next tree edit.
+- **Enter adds a child at the end** of the parent's existing children instead of
+  making it the first one — the other half of the same reordering complaint.
+
+### Removed
+- **`classes/01_foundation.css` is no longer created** in new projects. It only
+  zeroed `html`/`body` margin and padding, which the built-in CSS reset already
+  does, so it was dead weight in every new project.
+
 ## [0.12.7] - 2026-07-23
 
 ### Fixed

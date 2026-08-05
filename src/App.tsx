@@ -117,7 +117,7 @@ const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
 // here than pulling in the OS plugin just to answer one question.
 const IS_MAC = navigator.userAgent.includes("Macintosh");
 // Keep in sync with package.json / tauri.conf.json on release.
-const APP_VERSION = "0.12.7";
+const APP_VERSION = "0.12.8";
 // Set to the public repository URL once published (shown in the About dialog).
 const REPO_URL = "https://github.com/kyuri-14/Foling";
 
@@ -4461,7 +4461,12 @@ function TreeEditorPanel(props: {
   function addChildBelow(i: number) {
     const cur = props.rows[i];
     if (cur.collapsed) mutateRow(i, { collapsed: false });
-    insertRowAt(i + 1, cur.depth + 1);
+    // Append after the row's existing subtree, so a second child lands *below*
+    // the first. Inserting directly at i+1 made every new child the first one,
+    // which read as the tree reordering itself: add header, then article, and
+    // article appeared on top.
+    const [, end] = findSubtreeRange(props.rows, i);
+    insertRowAt(end, cur.depth + 1);
   }
 
   function addSiblingBelow(i: number) {

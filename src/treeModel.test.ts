@@ -118,6 +118,84 @@ describe("rowsToParsedTree", () => {
     ]);
     expect(tree[0].children[0].name).toBe("child");
   });
+
+  // Ordinals decide disk order, and equal ordinals make the builder fall back
+  // to sorting by folder name — so a duplicate does not merely look untidy, it
+  // silently reorders the tree alphabetically behind the user's back.
+  const ordinals = (nodes: { folderName: string }[]) =>
+    nodes.map((c) => c.folderName);
+
+  it("gives a row inserted above an existing sibling the lower ordinal", () => {
+    const tree = rowsToParsedTree([
+      row("p", 0, "body", { actualPath: "/p/HTML/02_body" }),
+      row("n", 1, "article"), // new, inserted first
+      row("h", 1, "header", { actualPath: "/p/HTML/02_body/01_header" }),
+    ]);
+    expect(ordinals(tree[0].children)).toEqual(["01_article", "02_header"]);
+  });
+
+  it("keeps row order when a new row lands between two existing ones", () => {
+    const tree = rowsToParsedTree([
+      row("p", 0, "body", { actualPath: "/p/HTML/02_body" }),
+      row("h", 1, "header", { actualPath: "/p/HTML/02_body/01_header" }),
+      row("n", 1, "main"), // new, in the middle
+      row("f", 1, "footer", { actualPath: "/p/HTML/02_body/02_footer" }),
+    ]);
+    expect(ordinals(tree[0].children)).toEqual([
+      "01_header",
+      "02_main",
+      "03_footer",
+    ]);
+  });
+
+  it("never repeats an ordinal among siblings", () => {
+    const tree = rowsToParsedTree([
+      row("p", 0, "body", { actualPath: "/p/HTML/02_body" }),
+      row("a", 1, "a"),
+      row("b", 1, "b", { actualPath: "/p/HTML/02_body/01_b" }),
+      row("c", 1, "c"),
+      row("d", 1, "d", { actualPath: "/p/HTML/02_body/02_d" }),
+    ]);
+    const nns = tree[0].children.map((c) => nnOf(c.folderName));
+    expect(new Set(nns).size).toBe(nns.length);
+    // ...and they increase, so sorting by ordinal reproduces the row order.
+    expect([...nns].sort((x, y) => (x ?? 0) - (y ?? 0))).toEqual(nns);
+  });
+
+  it("renames nothing when the disk order is already correct", () => {
+    // Opening a project must not trigger a mass renumber: every rename is a
+    // chance for another handle holder on Windows to refuse it.
+    const tree = rowsToParsedTree([
+      row("p", 0, "body", { actualPath: "/p/HTML/02_body" }),
+      row("a", 1, "header", { actualPath: "/p/HTML/02_body/01_header" }),
+      row("b", 1, "main", { actualPath: "/p/HTML/02_body/05_main" }),
+      row("c", 1, "footer", { actualPath: "/p/HTML/02_body/09_footer" }),
+    ]);
+    // Gaps and all — untouched.
+    expect(ordinals(tree[0].children)).toEqual([
+      "01_header",
+      "05_main",
+      "09_footer",
+    ]);
+  });
+
+  it("repairs duplicate ordinals left by earlier versions", () => {
+    const tree = rowsToParsedTree([
+      row("p", 0, "body", { actualPath: "/p/HTML/02_body" }),
+      row("a", 1, "article", { actualPath: "/p/HTML/02_body/01_article" }),
+      row("h", 1, "header", { actualPath: "/p/HTML/02_body/01_header" }),
+    ]);
+    expect(ordinals(tree[0].children)).toEqual(["01_article", "02_header"]);
+  });
+
+  it("leaves an unnumbered folder alone without disturbing its siblings", () => {
+    const tree = rowsToParsedTree([
+      row("p", 0, "body", { actualPath: "/p/HTML/02_body" }),
+      row("h", 1, "header", { actualPath: "/p/HTML/02_body/header" }),
+      row("n", 1, "main"),
+    ]);
+    expect(ordinals(tree[0].children)).toEqual(["header", "01_main"]);
+  });
 });
 
 describe("getVisibleRows", () => {
