@@ -121,7 +121,7 @@ const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
 // here than pulling in the OS plugin just to answer one question.
 const IS_MAC = navigator.userAgent.includes("Macintosh");
 // Keep in sync with package.json / tauri.conf.json on release.
-const APP_VERSION = "0.12.10";
+const APP_VERSION = "0.12.11";
 // Set to the public repository URL once published (shown in the About dialog).
 const REPO_URL = "https://github.com/kyuri-14/Foling";
 
@@ -7917,10 +7917,15 @@ function ImagesTab(props: {
   );
 }
 
-// MODULES tab. A module is a captured subtree plus the class definitions it
-// uses, and until now the only way to find out what one contained was to expand
-// it and look — so this shows the structure, the bundled CSS and any per-element
-// script before you commit to stamping it into the page.
+// MODULES tab. Laid out like the CLASSES tab — a list on the left, a detail
+// pane on the right — because they answer the same kind of question and there
+// is no reason for them to feel like different applications.
+//
+// The detail pane's two sections each scroll inside their own bounded box. An
+// earlier version let them flow in one growing document, so selecting a module
+// with any real amount of CSS pushed everything else off screen; and without
+// `min-width: 0` a single long declaration widened the grid column until it
+// crushed the list beside it.
 function ModulesTab(props: {
   files: ModuleFile[];
   hasSelectedElement: boolean;
@@ -7935,68 +7940,59 @@ function ModulesTab(props: {
   const [selected, setSelected] = useState<string | null>(
     all[0]?.mod.name ?? null
   );
+  // Falls back to the first entry so deleting or importing a file cannot leave
+  // the pane pointed at a module that is no longer there.
   const current = all.find((x) => x.mod.name === selected) ?? all[0] ?? null;
-
-  if (all.length === 0) {
-    return (
-      <div className="modules-tab">
-        <div className="editor-empty">
-          <p>{t("No modules in this project.")}</p>
-          <p className="modules-hint">
-            {t(
-              "Right-click an element in the tree and choose “Register as module” to capture it, or import a module file."
-            )}
-          </p>
-          <button onClick={props.onImport}>{t("Import module file...")}</button>
-        </div>
-      </div>
-    );
-  }
-
-  const outline = current ? moduleOutline(current.mod.snapshot) : [];
-  const scripted = current ? snapshotHasScript(current.mod.snapshot) : false;
 
   return (
     <div className="modules-tab">
-      <div className="modules-list">
-        <div className="modules-list-head">
-          <span>{t("Modules")}</span>
-          <button onClick={props.onImport} title={t("Import module file...")}>
-            ＋
-          </button>
+      <div className="modules-list-pane">
+        <div className="modules-list-toolbar">
+          <button onClick={props.onImport}>{t("Import module file...")}</button>
         </div>
-        {props.files.map((f) => (
-          <div key={f.name} className="modules-file">
-            <div className="modules-file-name">
-              <span>{f.name}</span>
-              <button
-                className="modules-file-del"
-                title={t("Delete this module file")}
-                onClick={() => props.onDeleteFile(f.name)}
-              >
-                ×
-              </button>
+        <div className="modules-list-rows">
+          {all.length === 0 && (
+            <div className="modules-list-empty">
+              {t("No modules in this project.")}
             </div>
-            {f.modules.map((m) => (
-              <button
-                key={m.name}
-                className={`modules-item ${
-                  current?.mod.name === m.name ? "active" : ""
-                }`}
-                onClick={() => setSelected(m.name)}
-              >
-                .{m.name}
-                <span className="modules-item-count">
-                  {countSnapshotNodes(m.snapshot)}
-                </span>
-              </button>
-            ))}
-          </div>
-        ))}
+          )}
+          {props.files.map((f) => (
+            <div key={f.name}>
+              <div className="modules-file-row">
+                <span className="modules-file-name">{f.name}</span>
+                <button
+                  className="modules-file-del"
+                  title={t("Delete this module file")}
+                  onClick={() => props.onDeleteFile(f.name)}
+                >
+                  ×
+                </button>
+              </div>
+              {f.modules.map((m) => (
+                <button
+                  key={m.name}
+                  className={`modules-list-row ${
+                    current?.mod.name === m.name ? "selected" : ""
+                  }`}
+                  onClick={() => setSelected(m.name)}
+                >
+                  <span className="modules-list-row-name">.{m.name}</span>
+                  <span className="modules-list-row-sub">
+                    {t("{n} elements").replace(
+                      "{n}",
+                      String(countSnapshotNodes(m.snapshot))
+                    )}
+                    {snapshotHasScript(m.snapshot) ? ` · ${t("script")}` : ""}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {current && (
-        <div className="modules-detail">
+      {current ? (
+        <div className="modules-detail-pane">
           <div className="modules-detail-head">
             <span className="modules-detail-name">.{current.mod.name}</span>
             <button
@@ -8018,55 +8014,73 @@ function ModulesTab(props: {
             )}
           </p>
 
-          <div className="modules-section-title">
-            {t("Structure")} ({countSnapshotNodes(current.mod.snapshot)})
-          </div>
-          <div className="modules-outline">
-            {outline.map((n, i) => (
-              <div
-                key={i}
-                className="modules-outline-row"
-                style={{ paddingLeft: `${8 + n.depth * 14}px` }}
-              >
-                <span className="modules-outline-tag">
-                  {withFindMarks(n.tag, props.find ?? "")}
-                </span>
-                {n.classes.length > 0 && (
-                  <span className="modules-outline-classes">
-                    {withFindMarks("." + n.classes.join("."), props.find ?? "")}
-                  </span>
-                )}
-                {n.content && (
-                  <span className="modules-outline-content">
-                    {withFindMarks(n.content, props.find ?? "")}
-                  </span>
+          <div className="modules-sections">
+            <section className="modules-section">
+              <div className="modules-section-title">{t("Structure")}</div>
+              <div className="modules-section-body modules-outline">
+                {moduleOutline(current.mod.snapshot).map((n, i) => (
+                  <div
+                    key={i}
+                    className="modules-outline-row"
+                    style={{ paddingLeft: `${8 + n.depth * 14}px` }}
+                  >
+                    <span className="modules-outline-tag">
+                      {withFindMarks(n.tag, props.find ?? "")}
+                    </span>
+                    {n.classes.length > 0 && (
+                      <span className="modules-outline-classes">
+                        {withFindMarks(
+                          "." + n.classes.join("."),
+                          props.find ?? ""
+                        )}
+                      </span>
+                    )}
+                    {n.content && (
+                      <span className="modules-outline-content">
+                        {withFindMarks(n.content, props.find ?? "")}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="modules-section">
+              <div className="modules-section-title">{t("Bundled CSS")}</div>
+              {/* The block below deliberately avoids `code-overlay`: that class
+                  is absolutely positioned to sit behind an editor's textarea,
+                  so borrowing it here lifted the CSS out of its section and
+                  painted it over the whole panel. */}
+              <div className="modules-section-body">
+                {current.mod.css.trim() ? (
+                  <pre className="modules-css">
+                    <code
+                      dangerouslySetInnerHTML={{
+                        __html: markMatches(
+                          highlight(current.mod.css, "css"),
+                          props.find ?? ""
+                        ),
+                      }}
+                    />
+                  </pre>
+                ) : (
+                  <div className="modules-empty-css">
+                    {t("This module bundles no class definitions.")}
+                  </div>
                 )}
               </div>
-            ))}
+            </section>
           </div>
-
-          <div className="modules-section-title">
-            {t("Bundled CSS")}
-            {scripted && (
-              <span className="modules-js-badge">{t("has script")}</span>
-            )}
+        </div>
+      ) : (
+        <div className="modules-detail-pane">
+          <div className="editor-empty">
+            <p>
+              {t(
+                "Right-click an element in the tree and choose “Register as module” to capture it, or import a module file."
+              )}
+            </p>
           </div>
-          {current.mod.css.trim() ? (
-            <pre className="modules-css code-overlay">
-              <code
-                dangerouslySetInnerHTML={{
-                  __html: markMatches(
-                    highlight(current.mod.css, "css"),
-                    props.find ?? ""
-                  ),
-                }}
-              />
-            </pre>
-          ) : (
-            <div className="modules-empty-css">
-              {t("This module bundles no class definitions.")}
-            </div>
-          )}
         </div>
       )}
     </div>

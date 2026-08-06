@@ -252,6 +252,8 @@ export const ja: LocaleDict = {
   "Expanded module:": "モジュールを展開しました:",
   "Expanding copies these elements into the page. Editing the module later does not change copies already expanded.":
     "展開すると、これらの要素がページに複製されます。あとからモジュールを編集しても、展開済みのものは変わりません。",
+  "{n} elements": "{n} 要素",
+  script: "スクリプト",
   Structure: "構造",
   "Bundled CSS": "同梱 CSS",
   "has script": "スクリプトあり",

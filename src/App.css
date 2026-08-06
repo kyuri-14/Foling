@@ -3278,72 +3278,89 @@ button.secondary {
   font-weight: 700;
 }
 
-/* ========== MODULES tab ========== */
+/* ========== MODULES tab ==========
+ * Mirrors the CLASSES tab: list on the left, detail on the right, same
+ * densities and paper surface. Teal stands in for CLASSES' amber so the two
+ * stay distinguishable at a glance without being differently shaped. */
 .tab-modules.active {
   border-bottom-color: #00b8a9;
 }
 
 .modules-tab {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 320px 1fr;
+  width: 100%;
   height: 100%;
   min-height: 0;
-  background: var(--c-editor-bg);
 }
 
-.modules-tab > .editor-empty {
-  grid-column: 1 / -1;
+.modules-list-pane {
+  background: #eefaf7;
+  border-right: 1px solid #b6ddd4;
+  display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-
-.modules-hint {
-  max-width: 42ch;
-  font-size: 0.84rem;
-  line-height: 1.6;
-  color: #6b7a6e;
-}
-
-.modules-list {
-  border-right: 1px solid #cfe5d3;
-  overflow: auto;
   min-height: 0;
 }
 
-.modules-list-head {
+.modules-list-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: #4a6b52;
-  border-bottom: 1px solid #cfe5d3;
+  gap: 4px;
+  padding: 6px;
+  border-bottom: 1px solid #b6ddd4;
+  background: #ddf3ee;
 }
 
-.modules-list-head button {
-  border: none;
-  background: transparent;
+.modules-list-toolbar button {
+  flex: 1;
+  padding: 4px 8px;
+  background: #fff;
+  border: 1px solid #8cc7ba;
   cursor: pointer;
-  font-size: 1rem;
-  color: #4a6b52;
+  font-size: 12px;
+  color: #12554a;
 }
 
-.modules-file-name {
+.modules-list-toolbar button:hover {
+  background: #f0fbf8;
+}
+
+.modules-list-rows {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 0;
+}
+
+.modules-list-empty {
+  color: #888;
+  font-style: italic;
+  padding: 16px 12px;
+  font-size: 13px;
+}
+
+/* The file a group of modules came from — a heading, not a target. */
+.modules-file-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px 4px;
-  font-size: 0.74rem;
-  color: #8a9a8d;
   font-family: var(--font-mono);
+  font-size: 11px;
+  color: #6d8a83;
+}
+
+/* Ellipsised rather than allowed to push the delete button out of reach. */
+.modules-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .modules-file-del {
+  flex: none;
   border: none;
   background: transparent;
-  color: #b0b8b2;
+  color: #a8bdb7;
   cursor: pointer;
   font-size: 0.9rem;
   padding: 0 2px;
@@ -3353,57 +3370,73 @@ button.secondary {
   color: #c0392b;
 }
 
-.modules-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.modules-list-row {
   width: 100%;
   padding: 6px 10px 6px 16px;
-  border: none;
-  background: transparent;
-  text-align: left;
   cursor: pointer;
+  border: none;
+  border-bottom: 1px solid #dcefea;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  text-align: left;
+}
+
+.modules-list-row:hover {
+  background: #f0fbf8;
+}
+
+.modules-list-row.selected {
+  background: #00b8a9;
+  color: #04302b;
+}
+
+.modules-list-row-name {
   font-family: var(--font-mono);
-  font-size: 0.86rem;
-  color: var(--c-editor-text);
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.modules-item:hover {
-  background: #e3f5e8;
+.modules-list-row-sub {
+  font-size: 11px;
+  color: #6d8a83;
 }
 
-.modules-item.active {
-  background: #c9ead3;
-  font-weight: 700;
+.modules-list-row.selected .modules-list-row-sub {
+  color: #04302b;
 }
 
-/* Element count: says how much page this module will stamp out. */
-.modules-item-count {
-  font-size: 0.72rem;
-  color: #7d8f82;
-  font-family: var(--font-ui);
-}
-
-.modules-detail {
-  overflow: auto;
+/* min-width: 0 is what stops a long CSS declaration from widening this column
+ * until it crushes the list beside it — a grid item defaults to min-content. */
+.modules-detail-pane {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
-  padding: 12px 16px;
+  min-width: 0;
+  background: #fff;
+  overflow: hidden;
 }
 
 .modules-detail-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding: 10px 14px 6px;
 }
 
 .modules-detail-name {
   font-family: var(--font-mono);
   font-size: 1.05rem;
   font-weight: 700;
+  color: #134018;
 }
 
 .modules-expand {
+  flex: none;
   padding: 6px 16px;
   border: 1px solid var(--c-run);
   border-radius: 6px;
@@ -3421,40 +3454,53 @@ button.secondary {
 }
 
 .modules-detail-note {
-  margin: 8px 0 4px;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 14px 8px;
   font-size: 0.78rem;
   line-height: 1.6;
   color: #6b7a6e;
 }
 
-.modules-section-title {
+/* Two bounded sections rather than one growing document: neither the outline
+ * nor the CSS can push the other off screen. */
+.modules-sections {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+}
+
+.modules-section {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 16px 0 6px;
-  font-size: 0.76rem;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-top: 1px solid #cfe5d3;
+}
+
+.modules-section-title {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #4a6b52;
+  background: #f5fff7;
+  border-bottom: 1px solid #e2f0e5;
 }
 
-.modules-js-badge {
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: #2d2d3a;
-  color: #ffd54f;
-  font-size: 0.68rem;
-  letter-spacing: 0;
+.modules-section-body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
 }
 
-/* The captured subtree, indented the way it will appear in the DOM tree. */
 .modules-outline {
-  border: 1px solid #cfe5d3;
-  border-radius: 4px;
-  background: #ffffff;
-  padding: 6px 0;
   font-family: var(--font-mono);
   font-size: 0.82rem;
+  padding: 6px 0;
 }
 
 .modules-outline-row {
@@ -3463,7 +3509,6 @@ button.secondary {
   align-items: baseline;
   padding: 2px 8px;
   white-space: nowrap;
-  overflow: hidden;
 }
 
 .modules-outline-tag {
@@ -3481,20 +3526,26 @@ button.secondary {
   text-overflow: ellipsis;
 }
 
+/* Read-only, in normal flow. The `syn-*` colours are global, so this only has
+ * to supply the surface and the monospace metrics they sit on. */
 .modules-css {
   margin: 0;
   padding: 10px 12px;
-  border-radius: 4px;
-  max-height: 260px;
-  overflow: auto;
+  min-height: 100%;
+  background: var(--editor-bg);
+  color: var(--syn-plain);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  tab-size: 2;
   white-space: pre;
   user-select: text;
 }
 
 .modules-empty-css {
-  padding: 10px 12px;
-  border: 1px dashed #cfe5d3;
-  border-radius: 4px;
+  padding: 10px 14px;
   font-size: 0.82rem;
   color: #8a9a8d;
+  font-style: italic;
 }
+

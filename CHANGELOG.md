@@ -6,6 +6,24 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.11] - 2026-08-06
+
+### Fixed
+- **The MODULES tab no longer collapses when a module has CSS.** The bundled
+  CSS was rendered with the editors' `code-overlay` class, which is absolutely
+  positioned to sit behind a textarea — so borrowing it lifted the code out of
+  its section and painted it across the whole panel. It is an ordinary block in
+  normal flow now, and selectable, which the overlay's `pointer-events: none`
+  had prevented.
+
+### Changed
+- **The MODULES tab is laid out like the CLASSES tab**: a list on the left, a
+  detail pane on the right, at the same widths and densities. Structure and
+  bundled CSS each scroll inside their own bounded section, so neither can push
+  the other off screen, and the list can no longer be squeezed by a long CSS
+  declaration. The list shows each module's element count and whether it carries
+  script, so the summary is visible without selecting it.
+
 ## [0.12.10] - 2026-08-06
 
 ### Fixed
