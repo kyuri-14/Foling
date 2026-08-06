@@ -6,6 +6,24 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.12] - 2026-08-06
+
+### Added
+- **Clicking an element in a module's structure inspects it.** The row opens
+  that element's own CSS, SCRIPT and CLASSES on tabs — the same three layers,
+  under the same names, as the editor's own tabs. The CLASSES tab resolves each
+  class name against the CSS the module bundles, so you see what a class
+  actually does rather than only that it is applied; a class the module does not
+  define is called out as coming from the project. Elements carrying script are
+  marked in the structure list, so the ones worth opening stand out. With no
+  element picked the pane still shows the module's whole bundled CSS.
+
+### Fixed
+- **Scrolling the bundled CSS sideways no longer runs onto white.** The dark
+  surface was painted by the `<pre>`, which is only as wide as the box it starts
+  in, so a long declaration scrolled off its own background. The scroll box
+  carries the surface now.
+
 ## [0.12.11] - 2026-08-06
 
 ### Fixed

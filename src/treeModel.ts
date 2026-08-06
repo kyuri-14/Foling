@@ -196,6 +196,7 @@ export interface SnapshotLike {
   config?: {
     classes?: string[];
     content?: string;
+    css?: string;
     js?: string;
   };
   children?: SnapshotLike[];
@@ -206,6 +207,10 @@ export interface OutlineRow {
   tag: string;
   classes: string[];
   content?: string;
+  /** The element's own declarations and script, so a row can be inspected
+   *  without walking back into the snapshot for it. */
+  css?: string;
+  js?: string;
 }
 
 /** Flatten a snapshot into indented rows, the way it will look once expanded. */
@@ -220,6 +225,8 @@ export function moduleOutline(
     tag: snap.name.replace(/^\d+_/, ""),
     classes: c.classes ?? [],
     content: c.content?.trim() || undefined,
+    css: c.css?.trim() || undefined,
+    js: c.js?.trim() || undefined,
   });
   for (const child of snap.children ?? []) moduleOutline(child, depth + 1, out);
   return out;

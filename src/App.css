@@ -3503,12 +3503,44 @@ button.secondary {
   padding: 6px 0;
 }
 
+/* Rows are buttons: clicking one opens that element's own layers below. */
 .modules-outline-row {
   display: flex;
   gap: 8px;
   align-items: baseline;
+  width: 100%;
   padding: 2px 8px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.modules-outline-row:hover {
+  background: #eefaf7;
+}
+
+.modules-outline-row.selected {
+  background: #00b8a9;
+  color: #04302b;
+}
+
+.modules-outline-row.selected .modules-outline-tag,
+.modules-outline-row.selected .modules-outline-classes,
+.modules-outline-row.selected .modules-outline-content {
+  color: #04302b;
+}
+
+/* Marks the elements that carry script, so the ones worth opening stand out. */
+.modules-outline-js {
+  padding: 0 5px;
+  border-radius: 3px;
+  background: #2d2d3a;
+  color: #ffd54f;
+  font-size: 0.62rem;
+  font-family: var(--font-ui);
 }
 
 .modules-outline-tag {
@@ -3526,13 +3558,18 @@ button.secondary {
   text-overflow: ellipsis;
 }
 
+/* The dark surface belongs to the scroll box, not to the <pre> inside it: a
+ * <pre> is only as wide as the viewport it starts in, so scrolling right past a
+ * long declaration used to run off its background and onto the pane's white. */
+.modules-code-body {
+  background: var(--editor-bg);
+}
+
 /* Read-only, in normal flow. The `syn-*` colours are global, so this only has
- * to supply the surface and the monospace metrics they sit on. */
+ * to supply the monospace metrics they sit on. */
 .modules-css {
   margin: 0;
   padding: 10px 12px;
-  min-height: 100%;
-  background: var(--editor-bg);
   color: var(--syn-plain);
   font-family: var(--font-mono);
   font-size: 0.78rem;
@@ -3549,3 +3586,78 @@ button.secondary {
   font-style: italic;
 }
 
+
+/* Per-element tab strip inside the MODULES detail pane. Deliberately smaller
+ * and quieter than the main editor tabs — it selects a layer of one element
+ * inside a module, not a layer of the page. */
+.modules-node-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 10px 0;
+  background: #f5fff7;
+  border-bottom: 1px solid #e2f0e5;
+}
+
+.modules-node-tag {
+  margin-right: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #4a6b52;
+}
+
+.modules-node-tab {
+  padding: 4px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #8a9a8d;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.modules-node-tab:hover {
+  color: #4a6b52;
+}
+
+.modules-node-tab.active {
+  color: #134018;
+  border-bottom-color: #00b8a9;
+}
+
+/* Hint sits beside the section title rather than as another line of prose. */
+.modules-section-hint {
+  margin-left: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #8a9a8d;
+}
+
+.modules-class-defs {
+  padding: 8px 0;
+}
+
+.modules-class-def + .modules-class-def {
+  margin-top: 10px;
+  border-top: 1px solid #e2f0e5;
+  padding-top: 10px;
+}
+
+.modules-class-def-name {
+  padding: 0 12px 2px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #7a4fb5;
+}
+
+/* A class definition sits on the editor surface even though its heading does
+ * not, so each block carries its own background. */
+.modules-class-def .modules-css {
+  background: var(--editor-bg);
+}

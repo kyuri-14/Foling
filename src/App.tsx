@@ -121,7 +121,7 @@ const DEFAULT_DOCTYPE = "<!DOCTYPE html>";
 // here than pulling in the OS plugin just to answer one question.
 const IS_MAC = navigator.userAgent.includes("Macintosh");
 // Keep in sync with package.json / tauri.conf.json on release.
-const APP_VERSION = "0.12.11";
+const APP_VERSION = "0.12.12";
 // Set to the public repository URL once published (shown in the About dialog).
 const REPO_URL = "https://github.com/kyuri-14/Foling";
 
@@ -7940,9 +7940,30 @@ function ModulesTab(props: {
   const [selected, setSelected] = useState<string | null>(
     all[0]?.mod.name ?? null
   );
+  // Which element of the module is being inspected, and which of its layers.
+  const [nodeIndex, setNodeIndex] = useState<number | null>(null);
+  const [nodeTab, setNodeTab] = useState<TabKey>("css");
+
   // Falls back to the first entry so deleting or importing a file cannot leave
   // the pane pointed at a module that is no longer there.
   const current = all.find((x) => x.mod.name === selected) ?? all[0] ?? null;
+  const outline = current ? moduleOutline(current.mod.snapshot) : [];
+  const node = nodeIndex != null ? outline[nodeIndex] : undefined;
+
+  // Class definitions the module carries, so a selected element can show what
+  // its class names actually resolve to rather than just naming them.
+  const bundledDefs = useMemo(
+    () =>
+      current
+        ? parseClassDefs([{ name: current.mod.name, content: current.mod.css }])
+        : [],
+    [current]
+  );
+
+  function pickModule(name: string) {
+    setSelected(name);
+    setNodeIndex(null);
+  }
 
   return (
     <div className="modules-tab">
@@ -7974,7 +7995,7 @@ function ModulesTab(props: {
                   className={`modules-list-row ${
                     current?.mod.name === m.name ? "selected" : ""
                   }`}
-                  onClick={() => setSelected(m.name)}
+                  onClick={() => pickModule(m.name)}
                 >
                   <span className="modules-list-row-name">.{m.name}</span>
                   <span className="modules-list-row-sub">
@@ -8016,13 +8037,21 @@ function ModulesTab(props: {
 
           <div className="modules-sections">
             <section className="modules-section">
-              <div className="modules-section-title">{t("Structure")}</div>
+              <div className="modules-section-title">
+                {t("Structure")}
+                <span className="modules-section-hint">
+                  {t("Click an element to inspect it")}
+                </span>
+              </div>
               <div className="modules-section-body modules-outline">
-                {moduleOutline(current.mod.snapshot).map((n, i) => (
-                  <div
+                {outline.map((n, i) => (
+                  <button
                     key={i}
-                    className="modules-outline-row"
+                    className={`modules-outline-row ${
+                      i === nodeIndex ? "selected" : ""
+                    }`}
                     style={{ paddingLeft: `${8 + n.depth * 14}px` }}
+                    onClick={() => setNodeIndex(i === nodeIndex ? null : i)}
                   >
                     <span className="modules-outline-tag">
                       {withFindMarks(n.tag, props.find ?? "")}
@@ -8035,41 +8064,135 @@ function ModulesTab(props: {
                         )}
                       </span>
                     )}
+                    {n.js && <span className="modules-outline-js">JS</span>}
                     {n.content && (
                       <span className="modules-outline-content">
                         {withFindMarks(n.content, props.find ?? "")}
                       </span>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
             </section>
 
-            <section className="modules-section">
-              <div className="modules-section-title">{t("Bundled CSS")}</div>
-              {/* The block below deliberately avoids `code-overlay`: that class
-                  is absolutely positioned to sit behind an editor's textarea,
-                  so borrowing it here lifted the CSS out of its section and
-                  painted it over the whole panel. */}
-              <div className="modules-section-body">
-                {current.mod.css.trim() ? (
-                  <pre className="modules-css">
-                    <code
-                      dangerouslySetInnerHTML={{
-                        __html: markMatches(
-                          highlight(current.mod.css, "css"),
-                          props.find ?? ""
-                        ),
-                      }}
-                    />
-                  </pre>
-                ) : (
-                  <div className="modules-empty-css">
-                    {t("This module bundles no class definitions.")}
-                  </div>
-                )}
-              </div>
-            </section>
+            {/* Nothing picked yet: the module's whole bundled CSS, which is the
+                question you have before you know which element to look at. */}
+            {!node ? (
+              <section className="modules-section">
+                <div className="modules-section-title">{t("Bundled CSS")}</div>
+                <div className="modules-section-body modules-code-body">
+                  {current.mod.css.trim() ? (
+                    <pre className="modules-css">
+                      <code
+                        dangerouslySetInnerHTML={{
+                          __html: markMatches(
+                            highlight(current.mod.css, "css"),
+                            props.find ?? ""
+                          ),
+                        }}
+                      />
+                    </pre>
+                  ) : (
+                    <div className="modules-empty-css">
+                      {t("This module bundles no class definitions.")}
+                    </div>
+                  )}
+                </div>
+              </section>
+            ) : (
+              <section className="modules-section">
+                {/* Same three layers, and the same names, as the editor tabs —
+                    an element inside a module is still just an element. */}
+                <div className="modules-node-tabs">
+                  <span className="modules-node-tag">&lt;{node.tag}&gt;</span>
+                  {(["css", "js", "classes"] as TabKey[]).map((k) => (
+                    <button
+                      key={k}
+                      className={`modules-node-tab ${
+                        nodeTab === k ? "active" : ""
+                      }`}
+                      onClick={() => setNodeTab(k)}
+                    >
+                      {k === "css" ? "CSS" : k === "js" ? "SCRIPT" : "CLASSES"}
+                    </button>
+                  ))}
+                </div>
+                <div
+                  className={`modules-section-body ${
+                    nodeTab === "classes" ? "" : "modules-code-body"
+                  }`}
+                >
+                  {nodeTab === "classes" ? (
+                    node.classes.length === 0 ? (
+                      <div className="modules-empty-css">
+                        {t("This element has no classes.")}
+                      </div>
+                    ) : (
+                      <div className="modules-class-defs">
+                        {node.classes.map((cn) => {
+                          const def = bundledDefs.find((d) => d.name === cn);
+                          return (
+                            <div key={cn} className="modules-class-def">
+                              <div className="modules-class-def-name">.{cn}</div>
+                              {def ? (
+                                <pre className="modules-css">
+                                  <code
+                                    dangerouslySetInnerHTML={{
+                                      __html: markMatches(
+                                        highlight(def.properties, "css"),
+                                        props.find ?? ""
+                                      ),
+                                    }}
+                                  />
+                                </pre>
+                              ) : (
+                                <div className="modules-empty-css">
+                                  {t(
+                                    "Not defined in this module — it must already exist in the project."
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  ) : nodeTab === "js" ? (
+                    node.js ? (
+                      <pre className="modules-css">
+                        <code
+                          dangerouslySetInnerHTML={{
+                            __html: markMatches(
+                              highlight(node.js, "js"),
+                              props.find ?? ""
+                            ),
+                          }}
+                        />
+                      </pre>
+                    ) : (
+                      <div className="modules-empty-css">
+                        {t("This element has no script.")}
+                      </div>
+                    )
+                  ) : node.css ? (
+                    <pre className="modules-css">
+                      <code
+                        dangerouslySetInnerHTML={{
+                          __html: markMatches(
+                            highlight(node.css, "css"),
+                            props.find ?? ""
+                          ),
+                        }}
+                      />
+                    </pre>
+                  ) : (
+                    <div className="modules-empty-css">
+                      {t("This element has no CSS of its own.")}
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
           </div>
         </div>
       ) : (

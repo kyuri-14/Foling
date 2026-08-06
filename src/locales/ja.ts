@@ -259,6 +259,12 @@ export const ja: LocaleDict = {
   "has script": "スクリプトあり",
   "This module bundles no class definitions.":
     "このモジュールにクラス定義は同梱されていません。",
+  "Click an element to inspect it": "要素をクリックすると詳細を表示します",
+  "This element has no classes.": "この要素にクラスはありません。",
+  "This element has no script.": "この要素にスクリプトはありません。",
+  "This element has no CSS of its own.": "この要素に固有の CSS はありません。",
+  "Not defined in this module — it must already exist in the project.":
+    "このモジュールには定義されていません（プロジェクト側に既存のクラスです）。",
 
   // Bug report
   "Report a bug": "バグを報告",
