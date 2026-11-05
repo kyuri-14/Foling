@@ -18,6 +18,37 @@ export interface FlatRow {
   content?: string; // text content, if any
   imageLabel?: string; // image filename (img src) or "bg-image"
   badges?: string[]; // key CSS hints: flex / grid / absolute / hidden / ...
+  /** Fixed id (`e17`) — never changes, so it is the name to use across edits. */
+  autoId?: string;
+  /** The element's own id, when the user gave it one (emitted instead of autoId). */
+  ownId?: string;
+}
+
+/** The id an element carries in the built page: its own, else its fixed id. */
+export function pageIdOf(row: { autoId?: string; ownId?: string }): string | undefined {
+  return row.ownId || row.autoId || undefined;
+}
+
+/** Page ids used by more than one row — HTML requires them to be unique. */
+export function duplicatePageIds(rows: { autoId?: string; ownId?: string }[]): Set<string> {
+  const seen = new Set<string>();
+  const dup = new Set<string>();
+  for (const r of rows) {
+    const id = pageIdOf(r);
+    if (!id) continue;
+    if (seen.has(id)) dup.add(id);
+    else seen.add(id);
+  }
+  return dup;
+}
+
+/** The element's own id from its config: the `id` field, else a typed `id` attribute. */
+export function ownIdOf(config: {
+  id?: string;
+  attributes?: Record<string, string>;
+}): string | undefined {
+  const own = (config.id ?? "").trim() || (config.attributes?.id ?? "").trim();
+  return own || undefined;
 }
 
 export interface RowMeta {

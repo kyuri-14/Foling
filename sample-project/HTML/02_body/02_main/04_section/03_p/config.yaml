@@ -6,3 +6,4 @@ available_classes:
   - note
 content: |
   この要素には available_classes に候補が 3 つ登録してあり、いまは pill だけが適用されています。エディタの CLASSES 欄で切り替えてみてください。
+auto_id: e27

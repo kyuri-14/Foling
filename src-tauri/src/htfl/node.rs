@@ -30,10 +30,17 @@ pub fn read_node(node_path: String) -> Result<NodeConfig, String> {
     read_node_config(Path::new(&node_path))
 }
 
-pub fn write_node(node_path: String, config: NodeConfig) -> Result<(), String> {
+pub fn write_node(node_path: String, mut config: NodeConfig) -> Result<(), String> {
     let _fs_guard = super::lock::fs_guard();
     let dir = PathBuf::from(&node_path);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // A fixed id never changes once given: whatever the caller sends, the
+    // element keeps the id it already has.
+    if let Ok(existing) = read_node_config(&dir) {
+        if existing.auto_id.is_some() {
+            config.auto_id = existing.auto_id;
+        }
+    }
     write_yaml(&dir.join(CONFIG_FILE), &config)
 }
 /// Seed common "link-bearing" tags with the attribute that makes them
@@ -77,7 +84,8 @@ pub fn create_node(parent_path: String, name: String) -> Result<String, String> 
     // Derive the tag name from the folder name's portion after `_`
     // (e.g. "03_a" → "a") and seed sensible defaults for that tag.
     let (_, tag) = split_prefix(&name);
-    let cfg = default_config_for_tag(tag);
+    let mut cfg = default_config_for_tag(tag);
+    cfg.auto_id = fresh_id_for(&dir);
     write_yaml(&dir.join(CONFIG_FILE), &cfg)?;
     Ok(dir.to_string_lossy().into_owned())
 }
@@ -126,8 +134,21 @@ pub fn snapshot_subtree(node_path: String) -> Result<NodeSnapshot, String> {
     walk(Path::new(&node_path))
 }
 
-pub fn restore_subtree(parent_path: String, snapshot: NodeSnapshot) -> Result<String, String> {
+/// Write a captured subtree back under `parent_path`.
+///
+/// `fresh_ids` decides what the elements are called: a paste or a module
+/// expansion creates *new* elements, which get new fixed ids; undoing a delete
+/// brings the *same* elements back, which keep the ids they had.
+pub fn restore_subtree(
+    parent_path: String,
+    snapshot: NodeSnapshot,
+    fresh_ids: bool,
+) -> Result<String, String> {
     let _fs_guard = super::lock::fs_guard();
+    let mut snapshot = snapshot;
+    if fresh_ids {
+        refresh_snapshot_ids(Path::new(&parent_path), &mut snapshot);
+    }
     fn build(parent: &Path, snap: &NodeSnapshot) -> Result<PathBuf, String> {
         let new_path = parent.join(&snap.name);
         retry_io(|| fs::create_dir_all(&new_path)).map_err(|e| e.to_string())?;

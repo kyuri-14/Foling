@@ -13,16 +13,20 @@
 //! bonus on this author's machine, keeps a CP932 console from ever having to
 //! render a UTF-8 path containing Japanese characters.
 //!
-//! **Addressing.** An element can be named two ways:
+//! **Addressing.** An element can be named four ways:
 //!
-//!   * `L12` — its line number in the editor, which is also the `id` the build
-//!     emits. `<body>` is line 1 and numbering walks its subtree in preorder.
-//!     This is what an agent sees in `htfl_get_tree` output and what a user
-//!     sees on screen, so the two can talk about the same element.
-//!   * `02_body/01_header` — a path relative to `HTML/`. Stable across edits
-//!     elsewhere in the tree, where a line number is not.
+//!   * `e17` — its fixed id. Assigned once, never changed or reused, and the
+//!     `id` the build emits unless the user gave the element one of their own.
+//!     The form to hold on to across edits.
+//!   * `L12` — its line number in the editor. `<body>` is line 1 and numbering
+//!     walks its subtree in preorder. What a user sees on screen, but it
+//!     shifts with every insert or delete above it.
+//!   * `#hero` — the `id` the element has in the built page (its own, or its
+//!     fixed id).
+//!   * `02_body/01_header` — a path relative to `HTML/`.
 //!
-//! Every tool accepts both and every tool reports both.
+//! Every tool accepts all of them and reports the fixed id, the line and the
+//! path together.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -52,6 +56,11 @@ impl Workspace {
             ));
         }
         htfl::set_lock_scope(Some(&canon));
+        // An agent addresses elements by fixed id, so make sure every element
+        // has one — the project may never have been opened in the editor.
+        if !read_only {
+            htfl::ensure_auto_ids(&canon)?;
+        }
         Ok(Self {
             root: canon,
             read_only,
@@ -117,6 +126,21 @@ impl Workspace {
                     format!("no element at line {line} (the tree has {} lines)", index.len())
                 })?;
             return Ok(path.clone());
+        }
+        if let Some(n) = htfl::parse_auto_id(r) {
+            let want = htfl::format_auto_id(n);
+            return self
+                .line_index()?
+                .into_iter()
+                .find(|p| self.ids_of(p).0.as_deref() == Some(want.as_str()))
+                .ok_or_else(|| format!("no element with fixed id {want}"));
+        }
+        if let Some(id) = r.strip_prefix('#').filter(|s| !s.is_empty()) {
+            return self
+                .line_index()?
+                .into_iter()
+                .find(|p| self.ids_of(p).1.as_deref() == Some(id))
+                .ok_or_else(|| format!("no element with id \"{id}\""));
         }
         let path = self.resolve_relative(r)?;
         if !path.is_dir() {
@@ -217,6 +241,19 @@ impl Workspace {
             .map(|i| (i + 1) as u32)
     }
 
+    /// `(fixed id, id in the built page)` of an element. The page id is the
+    /// user's own when they set one, otherwise the fixed id.
+    pub fn ids_of(&self, path: &Path) -> (Option<String>, Option<String>) {
+        let cfg = htfl::read_node(path.to_string_lossy().into_owned()).unwrap_or_default();
+        let own = cfg
+            .id
+            .clone()
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| cfg.attributes.get("id").cloned().filter(|s| !s.trim().is_empty()));
+        let page = own.or_else(|| cfg.auto_id.clone());
+        (cfg.auto_id, page)
+    }
+
     /// The tag an element resolves to, from its folder name (`03_a` → `a`)
     /// unless `config.yaml` overrides it.
     pub fn tag_of(&self, path: &Path) -> String {
@@ -271,6 +308,18 @@ mod tests {
         assert_eq!(ws.resolve("HTML/02_body/01_header").unwrap(), header);
         assert_eq!(ws.display_ref(&header), "02_body/01_header");
         assert_eq!(ws.line_of(&header), Some(2));
+
+        // body is e1 (given when the session opened), the header e2.
+        assert_eq!(ws.resolve("e2").unwrap(), header);
+        assert_eq!(ws.resolve("#e2").unwrap(), header);
+        assert!(ws.resolve("e99").is_err());
+
+        // A user id is found with '#', and the fixed id keeps working.
+        let mut cfg = htfl::read_node(header.to_string_lossy().into_owned()).unwrap();
+        cfg.id = Some("top".into());
+        htfl::write_node(header.to_string_lossy().into_owned(), cfg).unwrap();
+        assert_eq!(ws.resolve("#top").unwrap(), header);
+        assert_eq!(ws.resolve("e2").unwrap(), header);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

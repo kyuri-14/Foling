@@ -41,15 +41,17 @@ pub fn list() -> Vec<Tool> {
         Tool {
             name: "htfl_get_tree",
             description:
-                "Show the element tree as indented text with line numbers. Line numbers are \
-                 the element ids the build emits and match what the user sees in the editor, \
-                 so this is the cheapest way to orient yourself before editing. Each row shows \
-                 the tag, applied classes (.foo), a text-content preview, and ~css / ~js \
-                 markers when the element carries its own styles or script.",
+                "Show the element tree as indented text. Each row starts with the line number \
+                 the user sees in the editor and the element's fixed id (e17), then the tag, \
+                 its own id if it has one (#hero), applied classes (.foo), a text-content \
+                 preview, and ~css / ~js markers when the element carries its own styles or \
+                 script. Fixed ids never change; line numbers shift when elements are inserted \
+                 or deleted above them. This is the cheapest way to orient yourself before \
+                 editing.",
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "ref": ref_schema("Subtree to show, as a line number (\"L12\") or a path relative to HTML/ (\"02_body/01_header\"). Defaults to <body>."),
+                    "ref": ref_schema("Subtree to show: fixed id (\"e17\"), line number (\"L12\"), page id (\"#hero\") or path relative to HTML/ (\"02_body/01_header\"). Defaults to <body>."),
                     "depth": { "type": "integer", "minimum": 1, "description": "Maximum levels to descend. Omit for the whole subtree." }
                 }
             }),
@@ -57,11 +59,11 @@ pub fn list() -> Vec<Tool> {
         Tool {
             name: "htfl_get_element",
             description:
-                "Read one element's full config.yaml: tag, id, classes, attributes, text \
-                 content, per-element CSS and per-element JS.",
+                "Read one element's full config.yaml: tag, fixed id (auto_id), own id, classes, \
+                 attributes, text content, per-element CSS and per-element JS.",
             input_schema: json!({
                 "type": "object",
-                "properties": { "ref": ref_schema("Line number (\"L12\") or path relative to HTML/.") },
+                "properties": { "ref": ref_schema("Fixed id (\"e17\"), line number (\"L12\"), page id (\"#hero\") or path relative to HTML/.") },
                 "required": ["ref"]
             }),
         },
@@ -108,7 +110,7 @@ pub fn list() -> Vec<Tool> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "parent": ref_schema("Parent element: line number or path relative to HTML/."),
+                    "parent": ref_schema("Parent element: fixed id, line number, page id or path relative to HTML/."),
                     "tag": { "type": "string", "description": "HTML tag name, e.g. \"section\"." },
                     "position": { "type": "integer", "minimum": 1, "description": "1-based position among the parent's children. Omit to append last." },
                     "content": { "type": "string", "description": "Optional text content for the new element." },
@@ -128,14 +130,14 @@ pub fn list() -> Vec<Tool> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "ref": ref_schema("Line number or path relative to HTML/."),
+                    "ref": ref_schema("Fixed id, line number, page id or path relative to HTML/."),
                     "content": { "type": ["string", "null"], "description": "Text content. null clears it." },
                     "css": { "type": ["string", "null"], "description": "Per-element CSS declarations, one per line. null clears it." },
                     "js": { "type": ["string", "null"], "description": "Per-element JavaScript; `el` is bound to this element. Not emitted when output_mode is \"ssr\". null clears it." },
                     "classes": { "type": "array", "items": { "type": "string" }, "description": "Replaces the applied class list." },
                     "available_classes": { "type": "array", "items": { "type": "string" }, "description": "Replaces the element's class palette (superset of classes)." },
                     "attributes": { "type": "object", "description": "Merged into existing attributes; a null value removes that attribute." },
-                    "id": { "type": ["string", "null"], "description": "Explicit id. Ignored inside <body>, where the build numbers ids by line." }
+                    "id": { "type": ["string", "null"], "description": "The element's own HTML id, emitted instead of its fixed id (e17). The fixed id stays the same either way and keeps working as a ref. null clears it." }
                 },
                 "required": ["ref"]
             }),
@@ -146,7 +148,7 @@ pub fn list() -> Vec<Tool> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "ref": ref_schema("Line number or path relative to HTML/."),
+                    "ref": ref_schema("Fixed id, line number, page id or path relative to HTML/."),
                     "tag": { "type": "string", "description": "New HTML tag name." }
                 },
                 "required": ["ref", "tag"]
@@ -366,11 +368,23 @@ fn apply_str_patch(field: &mut Option<String>, patch: Patch<String>) -> bool {
     }
 }
 
-/// How an element is named back to the agent: both addressing forms at once.
+/// How an element is named back to the agent: line, fixed id, its own id if it
+/// has one, and the path — every addressing form at once.
 fn describe(ws: &Workspace, path: &Path) -> String {
+    let (fixed, page) = ws.ids_of(path);
+    let mut ids = String::new();
+    if let Some(f) = &fixed {
+        ids.push(' ');
+        ids.push_str(f);
+    }
+    if let Some(p) = page.filter(|p| Some(p) != fixed.as_ref()) {
+        ids.push_str(" #");
+        ids.push_str(&p);
+    }
     match ws.line_of(path) {
-        Some(line) => format!("L{line} ({})", ws.display_ref(path)),
-        None => ws.display_ref(path),
+        Some(line) => format!("L{line}{ids} ({})", ws.display_ref(path)),
+        None if ids.is_empty() => ws.display_ref(path),
+        None => format!("{} ({})", ids.trim_start(), ws.display_ref(path)),
     }
 }
 
@@ -400,7 +414,8 @@ fn get_tree(ws: &Workspace, args: &Value) -> Result<String, String> {
     let mut out = String::new();
     let _ = writeln!(
         out,
-        "{} — line numbers are element ids; use them or the path form as `ref`.",
+        "{} — columns: line (shifts on insert/delete), fixed id (never changes), tag. \
+         Any of them, a #id or the path works as `ref`.",
         ws.display_ref(&start)
     );
 
@@ -415,6 +430,14 @@ fn get_tree(ws: &Workspace, args: &Value) -> Result<String, String> {
         let tag = ws.tag_of(dir);
 
         let mut row = String::new();
+        let own_id = cfg
+            .id
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .or(cfg.attributes.get("id").map(String::as_str).filter(|s| !s.trim().is_empty()));
+        if let Some(own) = own_id {
+            let _ = write!(row, "#{own}");
+        }
         if !cfg.classes.is_empty() {
             let _ = write!(row, " .{}", cfg.classes.join("."));
         }
@@ -434,19 +457,20 @@ fn get_tree(ws: &Workspace, args: &Value) -> Result<String, String> {
             row.push_str(" ~js");
         }
 
+        let fixed = cfg.auto_id.as_deref().unwrap_or("-");
         match ws.line_of(dir) {
             Some(line) => {
-                let _ = writeln!(out, "{line:>4}  {}{tag}{row}", "  ".repeat(depth));
+                let _ = writeln!(out, "{line:>4}  {fixed:<6} {}{tag}{row}", "  ".repeat(depth));
             }
             None => {
-                let _ = writeln!(out, "   -  {}{tag}{row}", "  ".repeat(depth));
+                let _ = writeln!(out, "   -  {fixed:<6} {}{tag}{row}", "  ".repeat(depth));
             }
         }
 
         if depth + 1 > max_depth {
             let n = htfl::sibling_names(dir).map_err(|e| e.to_string())?.len();
             if n > 0 {
-                let _ = writeln!(out, "      {}… {n} more", "  ".repeat(depth + 1));
+                let _ = writeln!(out, "             {}… {n} more", "  ".repeat(depth + 1));
             }
             return Ok(());
         }
@@ -792,7 +816,8 @@ fn expand_module(ws: &Workspace, args: &Value) -> Result<String, String> {
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or(snapshot.name);
-    let created = htfl::restore_subtree(parent.to_string_lossy().into_owned(), snapshot)?;
+    // An expansion makes new elements: they get new fixed ids.
+    let created = htfl::restore_subtree(parent.to_string_lossy().into_owned(), snapshot, true)?;
 
     // Bundled class definitions are appended verbatim (compound selectors like
     // `.drawer.is-open .drawer-panel` must survive) between markers, so
@@ -926,10 +951,23 @@ fn update_project(ws: &Workspace, args: &Value) -> Result<String, String> {
 fn diagnostics(ws: &Workspace) -> Result<Vec<String>, String> {
     let defined = defined_classes(ws)?;
     let mut out = Vec::new();
+    // id in the built page → first line that uses it.
+    let mut page_ids: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
 
     for path in ws.line_index()? {
         let line = ws.line_of(&path).unwrap_or(0);
         let cfg = htfl::read_node(path.to_string_lossy().into_owned()).unwrap_or_default();
+        if let (_, Some(page_id)) = ws.ids_of(&path) {
+            match page_ids.get(&page_id) {
+                Some(first) => out.push(format!(
+                    "L{line} id \"{page_id}\" is also used by L{first} — an id must be unique \
+                     in the page"
+                )),
+                None => {
+                    page_ids.insert(page_id, line);
+                }
+            }
+        }
         let name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
@@ -1071,6 +1109,10 @@ mod tests {
         let tree = call(&ws, "htfl_get_tree", &json!({})).unwrap();
         assert!(tree.contains("section .hero"), "tree row: {tree}");
         assert!(tree.contains("~css"));
+        // Rows carry the fixed id, and it works as a ref.
+        assert!(tree.contains("   2  e2"), "tree row: {tree}");
+        let by_id = call(&ws, "htfl_get_element", &json!({ "ref": "e2" })).unwrap();
+        assert!(by_id.contains("tag: section"), "{by_id}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1116,6 +1158,25 @@ mod tests {
         assert!(out.contains("build ok"));
         assert!(out.contains("not a known HTML tag"), "{out}");
         assert!(out.contains("not defined in classes/"), "{out}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn fixed_ids_survive_inserts_above_and_duplicates_are_reported() {
+        let dir = scaffold("fixedid");
+        let ws = Workspace::open(&dir, false).unwrap();
+        call(&ws, "htfl_insert_element", &json!({ "parent": "02_body", "tag": "p", "content": "kept" }))
+            .unwrap();
+        // L2 is e2 now; insert above it and the line moves, the id does not.
+        call(&ws, "htfl_insert_element", &json!({ "parent": "02_body", "tag": "header", "position": 1 }))
+            .unwrap();
+        let el = call(&ws, "htfl_get_element", &json!({ "ref": "e2" })).unwrap();
+        assert!(el.contains("kept") && el.starts_with("L3 e2"), "{el}");
+
+        call(&ws, "htfl_update_element", &json!({ "ref": "e2", "id": "same" })).unwrap();
+        call(&ws, "htfl_update_element", &json!({ "ref": "L2", "id": "same" })).unwrap();
+        let out = call(&ws, "htfl_build", &json!({})).unwrap();
+        assert!(out.contains("id \"same\" is also used by"), "{out}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

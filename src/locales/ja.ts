@@ -82,6 +82,19 @@ export const ja: LocaleDict = {
 
   // Element editor modal
   "Edit element — line": "要素を編集 — 行",
+  "This id is used by more than one element.":
+    "この id は複数の要素で使われています。",
+  'id="{own}" (fixed id: {fixed})': 'id="{own}"（固定 id: {fixed}）',
+  "Fixed id {fixed}: it stays the same when elements are added or moved.":
+    "固定 id {fixed}: 要素を追加・移動しても変わりません。",
+  "{fixed} (fixed id — used while this is empty)":
+    "{fixed}（固定 id — 空欄のときに使われます）",
+  "Leave empty to use the fixed id, which never changes. Set one when a link (#…), a label's for or CSS needs a particular name.":
+    "空欄なら、変わらない固定 id が使われます。リンク（#…）や label の for、CSS で決まった名前が必要なときに指定してください。",
+  "An id cannot contain spaces.": "id に空白は使えません。",
+  "Another element already uses this id.": "この id は別の要素ですでに使われています。",
+  "An id starting with a digit cannot be used as a CSS #selector.":
+    "数字で始まる id は CSS の #セレクタで使えません。",
   "Select image (src)": "画像を選択 (src)",
   "Current:": "現在:",
   "Text (content)": "テキスト (content)",

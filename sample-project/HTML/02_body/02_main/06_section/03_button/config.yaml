@@ -10,3 +10,4 @@ js: |
     on = !on;
     el.textContent = on ? '動きました。もう一度押すと戻ります' : '押してみてください';
   });
+auto_id: e37

@@ -20,8 +20,18 @@ pub fn read_project_config(project_root: String) -> Result<ProjectConfig, String
     serde_yml::from_str(&s).map_err(|e| e.to_string())
 }
 
-pub fn write_project_config(project_root: String, config: ProjectConfig) -> Result<(), String> {
+pub fn write_project_config(project_root: String, mut config: ProjectConfig) -> Result<(), String> {
+    let _fs_guard = super::lock::fs_guard();
     let p = PathBuf::from(&project_root).join(PROJECT_FILE);
+    // The id counter only grows. Settings read before elements were created
+    // (the editor holds them for the whole session) would otherwise wind it
+    // back, and the same fixed id would be handed out twice.
+    if let Ok(on_disk) = read_project_config(project_root.clone()) {
+        config.next_auto_id = match (config.next_auto_id, on_disk.next_auto_id) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (a, b) => a.or(b),
+        };
+    }
     write_yaml(&p, &config)
 }
 pub fn init_project(project_root: String, doctype: Option<String>) -> Result<(), String> {

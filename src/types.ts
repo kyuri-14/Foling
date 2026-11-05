@@ -28,6 +28,10 @@ export interface NodeConfig {
   css?: string;
   js?: string;
   links: LinkEntry[];
+  /** Fixed id (`e17`) of an element inside <body>. Assigned by the backend
+   *  once and never changed — the editor only displays it and must send it
+   *  back unchanged when saving. Emitted as the element's id unless `id` is set. */
+  auto_id?: string;
 }
 
 export interface HeadConfig {
@@ -54,6 +58,8 @@ export interface ProjectConfig {
   output_mode?: "ssr" | "ssr+js";
   /** Project-level <head> settings, edited via FILE → HEAD. */
   head?: HeadConfig;
+  /** Next fixed element id number. Only the backend advances it. */
+  next_auto_id?: number;
 }
 
 export interface NodeSnapshot {

@@ -1,2 +1,3 @@
 content: |
   ページのタイトル・説明文・OGP・favicon は、要素ではなくプロジェクトの設定です。htfl.yaml の head: にまとめてあり、FILE → HEAD から編集します。ツリーが <body> の中身だけに集中できるのはこのためです。
+auto_id: e43

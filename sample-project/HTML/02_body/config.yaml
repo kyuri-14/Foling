@@ -3,3 +3,4 @@ css: |
   color: $colorInk;
   background: $colorBg;
   line-height: 1.8;
+auto_id: e1

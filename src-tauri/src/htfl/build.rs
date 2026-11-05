@@ -187,10 +187,10 @@ pub fn render_node(
     scripts: &mut Vec<(String, String)>,
     js_counter: &mut u32,
     dev: bool,
-    // Sequential id counter over the <body> subtree. Once numbering is active,
-    // every element gets id="N" matching its line number in the editor tree.
-    id_counter: &mut u32,
-    number_ids: bool,
+    // True once <body> has been entered. From there down an element without
+    // an id of its own is given its fixed id (`e17`), so every element in the
+    // page can be addressed the same way in the editor, the browser and MCP.
+    in_body: bool,
     // When false (SSR / static output), the per-element SCRIPT (js) layer is
     // not emitted, so the page works with JavaScript disabled.
     emit_scripts: bool,
@@ -213,9 +213,7 @@ pub fn render_node(
     } else {
         "  ".repeat(depth)
     };
-    // Numbering activates at <body> and stays on for its whole subtree, so the
-    // emitted id matches the line number shown in the editor (body = line 1).
-    let numbering = number_ids || tag == "body";
+    let in_body_here = in_body || tag == "body";
 
     out.push_str(&pad);
     out.push('<');
@@ -240,12 +238,21 @@ pub fn render_node(
     let attr_class = cfg.attributes.get("class").map(String::as_str);
     let attr_style = cfg.attributes.get("style").map(String::as_str);
 
-    // id = the element's line number within <body> (auto, overrides any
-    // stored id). Elements outside <body> keep their explicit id if set.
-    if numbering {
-        *id_counter += 1;
-        out.push_str(&format!(" id=\"{}\"", id_counter));
-    } else if let Some(id) = cfg.id.as_deref().or(attr_id) {
+    // id: the one the user chose (the `id` field, or an `id` typed into the
+    // attribute map) always wins; failing that, an element in <body> carries
+    // its fixed id. Ids used to be the element's line number, which overwrote
+    // the user's and shifted on every insert.
+    let own_id = cfg
+        .id
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .or(attr_id.filter(|s| !s.trim().is_empty()));
+    let emitted_id = own_id.or(if in_body_here {
+        cfg.auto_id.as_deref()
+    } else {
+        None
+    });
+    if let Some(id) = emitted_id {
         out.push_str(&format!(" id=\"{}\"", escape_attr(id)));
     }
 
@@ -413,7 +420,7 @@ pub fn render_node(
         for child in &node.children {
             render_node(
                 child, vars, depth + 1, out, None, None, scripts, js_counter,
-                dev, id_counter, numbering, emit_scripts, pre_here,
+                dev, in_body_here, emit_scripts, pre_here,
             )?;
         }
 
@@ -534,7 +541,6 @@ pub fn generate_html(root: &Path, dev: bool) -> Result<String, String> {
     let mut out = String::new();
     let mut scripts: Vec<(String, String)> = Vec::new();
     let mut js_counter: u32 = 0;
-    let mut id_counter: u32 = 0;
     out.push_str(&doctype);
     out.push('\n');
     out.push_str(&format!("<html lang=\"{}\">\n", escape_attr(&lang)));
@@ -554,7 +560,6 @@ pub fn generate_html(root: &Path, dev: bool) -> Result<String, String> {
             &mut scripts,
             &mut js_counter,
             dev,
-            &mut id_counter,
             false,
             emit_scripts,
             false,

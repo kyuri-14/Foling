@@ -50,6 +50,15 @@ pub struct NodeConfig {
     pub js: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<LinkEntry>,
+    /// Fixed id (`e17`) of an element inside `<body>`. Assigned once by
+    /// Foling — when the element is created, or the first time a folder
+    /// without one is read — and never changed or reused afterwards, so the
+    /// editor, the built page and an MCP agent can all name the element by it
+    /// across edits. The build emits it as the element's `id` unless `id` (or
+    /// a typed `id` attribute) is set. Kept last so the line a migration
+    /// appends lands where a later save would put it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -87,6 +96,10 @@ pub struct ProjectConfig {
     /// tree). Injected into <head> at build time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub head: Option<HeadConfig>,
+    /// Number the next fixed element id (`e<N>`) will take. Only ever grows:
+    /// ids of deleted elements are not handed out again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_auto_id: Option<u32>,
 }
 
 /// <head> tags managed at the project level (FILE → HEAD menus).

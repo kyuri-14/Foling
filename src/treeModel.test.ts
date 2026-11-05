@@ -14,6 +14,9 @@ import {
   snapshotHasScript,
   rowsToParsedTree,
   sanitizeTagForFolder,
+  duplicatePageIds,
+  ownIdOf,
+  pageIdOf,
 } from "./treeModel";
 
 const row = (
@@ -297,5 +300,29 @@ describe("findSubtreeRange", () => {
     expect(findSubtreeRange(rows, 1)).toEqual([1, 3]); // ul + li
     expect(findSubtreeRange(rows, 0)).toEqual([0, 4]); // whole tree
     expect(findSubtreeRange(rows, 3)).toEqual([3, 4]); // leaf
+  });
+});
+
+describe("element ids", () => {
+  it("emits the user's own id when there is one, else the fixed id", () => {
+    expect(pageIdOf({ autoId: "e3" })).toBe("e3");
+    expect(pageIdOf({ autoId: "e3", ownId: "hero" })).toBe("hero");
+    expect(pageIdOf({})).toBeUndefined();
+  });
+
+  it("reads the own id from the id field, then a typed id attribute", () => {
+    expect(ownIdOf({ id: "a", attributes: { id: "b" } })).toBe("a");
+    expect(ownIdOf({ id: "  ", attributes: { id: "b" } })).toBe("b");
+    expect(ownIdOf({ attributes: {} })).toBeUndefined();
+  });
+
+  it("flags only ids that more than one element would emit", () => {
+    const dup = duplicatePageIds([
+      { autoId: "e1" },
+      { autoId: "e2", ownId: "x" },
+      { autoId: "e3", ownId: "x" },
+      { autoId: "e4" },
+    ]);
+    expect([...dup]).toEqual(["x"]);
   });
 });

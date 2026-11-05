@@ -43,16 +43,31 @@ pub fn apply_attrs(el: &scraper::node::Element, cfg: &mut NodeConfig) {
     }
 }
 
-pub fn write_imported_element(
+/// State carried through one import.
+struct ImportCtx<'a> {
+    /// Folder of the source .html, for resolving local stylesheets.
+    html_dir: Option<&'a Path>,
+    /// CSS gathered from <style> and local <link rel=stylesheet>.
+    css: String,
+    /// Next fixed id to hand out (elements in <body> get one each).
+    next_id: u32,
+}
+
+fn write_imported_element(
     el: scraper::ElementRef,
     folder: &Path,
-    html_dir: Option<&Path>,
-    imported_css: &mut String,
+    ctx: &mut ImportCtx,
+    in_body: bool,
 ) -> Result<(), String> {
     let tag_name = el.value().name().to_ascii_lowercase();
+    let in_body = in_body || tag_name == "body";
 
     let mut cfg = NodeConfig::default();
     apply_attrs(el.value(), &mut cfg);
+    if in_body {
+        cfg.auto_id = Some(format_auto_id(ctx.next_id));
+        ctx.next_id += 1;
+    }
 
     // Direct text content (skip script/style — handled separately).
     if tag_name != "script" && tag_name != "style" {
@@ -87,8 +102,8 @@ pub fn write_imported_element(
         // <style> → classes/, skip element folder
         if ctag == "style" {
             let css: String = child_el.text().collect();
-            imported_css.push_str(css.trim());
-            imported_css.push('\n');
+            ctx.css.push_str(css.trim());
+            ctx.css.push('\n');
             continue;
         }
 
@@ -100,11 +115,11 @@ pub fn write_imported_element(
                 && !href.starts_with("http")
                 && !href.starts_with("//");
             if rel.contains("stylesheet") && is_local {
-                if let Some(dir) = html_dir {
+                if let Some(dir) = ctx.html_dir {
                     if let Ok(css) = fs::read_to_string(dir.join(href)) {
-                        imported_css.push_str(&format!("/* {} */\n", href));
-                        imported_css.push_str(&css);
-                        imported_css.push('\n');
+                        ctx.css.push_str(&format!("/* {} */\n", href));
+                        ctx.css.push_str(&css);
+                        ctx.css.push('\n');
                         continue;
                     }
                 }
@@ -113,7 +128,7 @@ pub fn write_imported_element(
 
         let child_folder =
             folder.join(format!("{:02}_{}", order, sanitize_tag(&ctag)));
-        write_imported_element(child_el, &child_folder, html_dir, imported_css)?;
+        write_imported_element(child_el, &child_folder, ctx, in_body)?;
         order += 1;
     }
     Ok(())
@@ -130,7 +145,11 @@ pub fn import_html(html_path: String, dest_root: String) -> Result<String, Strin
     let dest = PathBuf::from(&dest_root);
     fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
 
-    let mut imported_css = String::new();
+    let mut ctx = ImportCtx {
+        html_dir: html_dir.as_deref(),
+        css: String::new(),
+        next_id: 1,
+    };
 
     let html_sel = scraper::Selector::parse("html").unwrap();
     let html_el = doc
@@ -154,20 +173,15 @@ pub fn import_html(html_path: String, dest_root: String) -> Result<String, Strin
         };
         let ctag = child_el.value().name().to_ascii_lowercase();
         let folder = html_folder.join(format!("{:02}_{}", order, sanitize_tag(&ctag)));
-        write_imported_element(
-            child_el,
-            &folder,
-            html_dir.as_deref(),
-            &mut imported_css,
-        )?;
+        write_imported_element(child_el, &folder, &mut ctx, false)?;
         order += 1;
     }
 
     // classes/
     let classes_dir = dest.join(CLASSES_DIR);
     fs::create_dir_all(&classes_dir).map_err(|e| e.to_string())?;
-    if !imported_css.trim().is_empty() {
-        fs::write(classes_dir.join("01_imported.css"), imported_css)
+    if !ctx.css.trim().is_empty() {
+        fs::write(classes_dir.join("01_imported.css"), &ctx.css)
             .map_err(|e| e.to_string())?;
     }
     // images/
@@ -177,6 +191,7 @@ pub fn import_html(html_path: String, dest_root: String) -> Result<String, Strin
     let proj = ProjectConfig {
         doctype: Some(DEFAULT_DOCTYPE.to_string()),
         css_reset: Some(false),
+        next_auto_id: Some(ctx.next_id),
         ..Default::default()
     };
     write_yaml(&dest.join(PROJECT_FILE), &proj)?;

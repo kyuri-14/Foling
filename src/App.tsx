@@ -55,6 +55,9 @@ import {
   FlatRow,
   ParsedNode,
   basenameOf,
+  duplicatePageIds,
+  ownIdOf,
+  pageIdOf,
   findSubtreeRange,
   getVisibleRows,
   lineNumPad,
@@ -599,6 +602,8 @@ function syncRowsFromTree(
       content: meta.content,
       imageLabel: meta.imageLabel,
       badges: meta.badges,
+      autoId: n.config?.auto_id,
+      ownId: ownIdOf(n.config ?? {}),
     });
     for (const c of n.children) walk(c, depth + 1);
   }
@@ -1316,6 +1321,8 @@ function cleanForSave(c: NodeConfig): NodeConfig {
     links: c.links.filter(
       (l) => (l.rel ?? "").trim() !== "" || (l.href ?? "").trim() !== ""
     ),
+    // The fixed id is the backend's to give; pass it through untouched.
+    auto_id: c.auto_id,
   };
   if (c.available_classes && c.available_classes.length > 0) {
     cleaned.available_classes = c.available_classes.filter(
@@ -1896,6 +1903,27 @@ export default function App() {
     };
   }, [config, dirty, selectedPath]);
 
+  // Keep the selected element's tree row — its id label, text preview and
+  // badges — in step with edits. The rows are otherwise built from the tree as
+  // last read, so giving an element its own id left the row showing the fixed
+  // one until something re-read the tree. Rows only: changing `tree` here
+  // would restart the DEV-preview poll on every keystroke.
+  useEffect(() => {
+    if (!selectedPath || configPathRef.current !== selectedPath) return;
+    setRows((cur) =>
+      cur.map((r) =>
+        r.actualPath === selectedPath
+          ? {
+              ...r,
+              ...rowMetaFromConfig(r.name, config),
+              autoId: config.auto_id ?? r.autoId,
+              ownId: ownIdOf(config),
+            }
+          : r
+      )
+    );
+  }, [config, selectedPath]);
+
   // Flush every pending edit to disk. Kept in a ref (refreshed each render) so
   // the window close handler — registered once — always sees current state.
   const flushAllRef = useRef<() => Promise<void>>(async () => {});
@@ -2405,7 +2433,8 @@ export default function App() {
           ...clip,
           name: `${String(next).padStart(2, "0")}_${tagPart}`,
         };
-        const newPath = await restoreSubtree(parent.path, reNamed);
+        // A paste makes new elements, so they get new fixed ids.
+        const newPath = await restoreSubtree(parent.path, reNamed, true);
         // record so Ctrl+Z removes the pasted subtree
         pushUndo({ type: "create", path: newPath });
         const t = await readTree(root);
@@ -2458,7 +2487,14 @@ export default function App() {
     const base = fileBase.trim() || "modules";
     const fileName = /\.ya?ml$/i.test(base) ? base : `${base}.yaml`;
     try {
-      const snapshot = await snapshotSubtree(actualPath);
+      // A module is a recipe, not these elements: drop their fixed ids so the
+      // file carries no project-specific numbers (expanding assigns new ones).
+      const stripIds = (n: NodeSnapshot): NodeSnapshot => ({
+        ...n,
+        config: { ...n.config, auto_id: undefined },
+        children: n.children.map(stripIds),
+      });
+      const snapshot = stripIds(await snapshotSubtree(actualPath));
       // Bundle the class definitions the subtree references.
       const used = new Set<string>();
       collectSnapshotClasses(snapshot, used);
@@ -2540,7 +2576,7 @@ export default function App() {
           ...mod.snapshot,
           name: `${String(next).padStart(2, "0")}_${tagPart}`,
         };
-        const newPath = await restoreSubtree(parent, renamed);
+        const newPath = await restoreSubtree(parent, renamed, true);
         await injectModuleClasses(mod.name, mod.css);
         pushUndo({ type: "create", path: newPath });
         const tNext = await readTree(root);
@@ -2612,7 +2648,7 @@ export default function App() {
           ...mod.snapshot,
           name: `${String(next).padStart(2, "0")}_${tagPart}`,
         };
-        const newPath = await restoreSubtree(parent, renamed);
+        const newPath = await restoreSubtree(parent, renamed, true);
         await injectModuleClasses(mod.name, mod.css);
         pushUndo({ type: "create", path: newPath });
         const tNext = await readTree(root);
@@ -3810,6 +3846,14 @@ export default function App() {
       {elementEdit && selectedPath && (
         <ElementEditModal
           lineNumber={elementEdit.lineNumber}
+          usedIds={
+            new Set(
+              rows
+                .filter((r) => r.actualPath !== selectedPath)
+                .map((r) => pageIdOf(r))
+                .filter((x): x is string => !!x)
+            )
+          }
           tag={(
             config.tag ??
             rows.find((r) => r.actualPath === selectedPath)?.name ??
@@ -4474,6 +4518,9 @@ function TreeEditorPanel(props: {
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
 
   const visible = useMemo(() => getVisibleRows(props.rows), [props.rows]);
+  // Page ids used by more than one element: HTML needs them unique, and only
+  // a user-typed id can collide (fixed ids are handed out once each).
+  const dupIds = useMemo(() => duplicatePageIds(props.rows), [props.rows]);
 
   // The highlighted row: whichever holds the caret, and failing that the row
   // for the selected element. Both signals are needed because neither survives
@@ -4866,6 +4913,12 @@ function TreeEditorPanel(props: {
               linePad={linePad}
               hasChildren={hasChildren}
               unknownTag={!isKnownTag(row.name)}
+              autoId={row.autoId}
+              ownId={row.ownId}
+              duplicateId={(() => {
+                const pid = pageIdOf(row);
+                return !!pid && dupIds.has(pid);
+              })()}
               selected={index === activeIndex}
               highlightSource={
                 !!row.actualPath &&
@@ -5022,6 +5075,11 @@ function TreeRowComponent(props: {
   linePad: number;
   hasChildren: boolean;
   unknownTag: boolean;
+  /** Fixed id (`e17`) and the user's own id, if any (emitted instead). */
+  autoId?: string;
+  ownId?: string;
+  /** The emitted id is also used by another element. */
+  duplicateId: boolean;
   selected: boolean;
   highlightSource: boolean;
   /** Row matches the title-bar find (only set when the search targets the tree). */
@@ -5132,6 +5190,33 @@ function TreeRowComponent(props: {
         </span>
       )}
       <span className="tree-row-spacer" />
+      {(props.ownId || props.autoId) && (
+        <span
+          className={[
+            "tree-row-id",
+            props.ownId ? "is-own" : "",
+            props.duplicateId ? "is-duplicate" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          title={
+            (props.duplicateId
+              ? t("This id is used by more than one element.") + "\n"
+              : "") +
+            (props.ownId
+              ? t('id="{own}" (fixed id: {fixed})')
+                  .replace("{own}", props.ownId)
+                  .replace("{fixed}", props.autoId ?? "—")
+              : t("Fixed id {fixed}: it stays the same when elements are added or moved.").replace(
+                  "{fixed}",
+                  props.autoId ?? ""
+                ))
+          }
+        >
+          {props.duplicateId ? "⚠ " : ""}
+          {props.ownId ? `#${props.ownId}` : props.autoId}
+        </span>
+      )}
       <button
         type="button"
         className="tree-edit-btn"
@@ -6589,6 +6674,8 @@ function JsEditor(props: {
 function ElementEditModal(props: {
   lineNumber: number;
   tag: string;
+  /** Page ids of every *other* element, to catch a duplicate as it is typed. */
+  usedIds: Set<string>;
   config: NodeConfig;
   update: <K extends keyof NodeConfig>(k: K, v: NodeConfig[K]) => void;
   imageFolders: ImageFolder[];
@@ -6606,6 +6693,18 @@ function ElementEditModal(props: {
 
   const c = props.config;
   const isImg = props.tag === "img";
+  const ownId = ownIdOf(c);
+  const pageId = ownId ?? c.auto_id;
+  const typedId = (c.id ?? "").trim();
+  const idProblem = !typedId
+    ? null
+    : /\s/.test(typedId)
+    ? t("An id cannot contain spaces.")
+    : props.usedIds.has(typedId)
+    ? t("Another element already uses this id.")
+    : /^[0-9]/.test(typedId)
+    ? t("An id starting with a digit cannot be used as a CSS #selector.")
+    : null;
   const VOID = new Set([
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
     "meta", "source", "track", "wbr",
@@ -6636,11 +6735,39 @@ function ElementEditModal(props: {
           <span>
             {t("Edit element — line")} {props.lineNumber}
             <code className="elem-tag">&lt;{props.tag || "?"}&gt;</code>
-            <span className="elem-id">id="{props.lineNumber}"</span>
+            {pageId && <span className="elem-id">id="{pageId}"</span>}
           </span>
           <button onClick={props.onClose}>×</button>
         </div>
         <div className="element-edit-body">
+          <div className="elem-section">
+            <label className="elem-field elem-id-field">
+              <span>id</span>
+              <input
+                value={c.id ?? ""}
+                spellCheck={false}
+                placeholder={
+                  c.attributes.id ||
+                  (c.auto_id
+                    ? t("{fixed} (fixed id — used while this is empty)").replace(
+                        "{fixed}",
+                        c.auto_id
+                      )
+                    : "")
+                }
+                onChange={(e) =>
+                  props.update("id", e.target.value === "" ? undefined : e.target.value)
+                }
+              />
+            </label>
+            <div className={`elem-id-help ${idProblem ? "is-problem" : ""}`}>
+              {idProblem
+                ? `⚠ ${idProblem}`
+                : t(
+                    "Leave empty to use the fixed id, which never changes. Set one when a link (#…), a label's for or CSS needs a particular name."
+                  )}
+            </div>
+          </div>
           {isImg ? (
             <div className="elem-section">
               <div className="elem-section-title">{t("Select image (src)")}</div>
@@ -7716,13 +7843,13 @@ function searchTree(root: TreeNode, queryRaw: string): SearchHit[] {
     if (depth > 0) {
       const cfg = n.config ?? ({} as NodeConfig);
       const tag = (n.display_name || n.name || "").toLowerCase();
-      const id = (cfg.id ?? "").toLowerCase();
+      const id = `${cfg.id ?? ""} ${cfg.auto_id ?? ""}`.toLowerCase();
       const classes = (cfg.classes ?? []).join(" ").toLowerCase();
       const content = (cfg.content ?? "").toLowerCase();
       const css = (cfg.css ?? "").toLowerCase();
       let reason = "";
       if (tag.includes(q)) reason = "tag";
-      else if (id.includes(q)) reason = `id="${cfg.id}"`;
+      else if (id.includes(q)) reason = `id="${cfg.id || cfg.auto_id}"`;
       else if (classes.includes(q)) reason = `class: ${(cfg.classes ?? []).join(" ")}`;
       else if (content.includes(q)) reason = "content";
       else if (css.includes(q)) reason = "CSS";

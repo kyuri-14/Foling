@@ -30,12 +30,14 @@ per element, each holding a config.yaml with that element's classes, attributes,
 text, CSS and JS.
 
 Working rules:
-- Call htfl_get_tree first. Elements are addressed either by line number (\"L12\", \
-which is also the id the build emits) or by path relative to HTML/ \
-(\"02_body/01_header\"). Both are accepted everywhere.
+- Call htfl_get_tree first. Address elements by fixed id (\"e17\"), which never \
+changes, by line number (\"L12\"), by the id they have in the page (\"#hero\"), or by \
+path relative to HTML/ (\"02_body/01_header\"). All are accepted everywhere. Line \
+numbers shift when you insert or delete, so prefer fixed ids across edits.
+- The build emits an element's own id when it has one (set it with \
+htfl_update_element), otherwise its fixed id.
 - Never create or rename folders yourself. htfl_insert_element assigns the NN_ \
-ordinal; line numbers shift when you insert, so re-read the tree after \
-structural edits.
+ordinal and the fixed id.
 - <head> is a project setting, not a tree element. Page title, meta description, \
 OGP and favicon go through htfl_update_project, not htfl_insert_element.
 - Element CSS (the `css` field) is a list of declarations without a selector or \

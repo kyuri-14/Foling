@@ -65,7 +65,7 @@ my-project/
 
 ```yaml
 tag: div                  # タグ名の明示的な上書き(通常はフォルダ名から推定)
-id: hero                  # id 属性
+id: hero                  # id 属性(任意。指定すると固定 id の代わりに出力)
 classes:                  # 出力される class(class="...")
   - container
   - flex-row
@@ -89,6 +89,7 @@ links:                    # <link> 要素(通常は head 内で使用)
   - rel: stylesheet
     href: /styles/main.css
     type: text/css        # 任意
+auto_id: e17              # 固定 id(Foling が自動で付与。編集しない)
 ```
 
 ### フィールド詳細
@@ -96,7 +97,7 @@ links:                    # <link> 要素(通常は head 内で使用)
 | フィールド | 型 | 説明 |
 |---|---|---|
 | `tag` | string | フォルダ名から推定されるタグを上書き。通常は不要。 |
-| `id` | string | `id` 属性。 |
+| `id` | string | `id` 属性。指定した要素ではこの値がそのまま出力され、固定 id より優先されます(→ §5.5)。 |
 | `classes` | string[] | 実際に出力される class。 |
 | `available_classes` | string[] | エディタの CLASSES 欄に出す候補集合。`classes` を含む上位集合。UI でのトグルは `classes` の出し入れのみ。 |
 | `disabled_inherits` | string[] | 親から継承される CSS のうち無効化したいプロパティ。ビルド時に `prop: initial;` としてインラインで出力。 |
@@ -105,6 +106,7 @@ links:                    # <link> 要素(通常は head 内で使用)
 | `css` | string | この要素の CSS 宣言群(セレクタ不要、宣言のみ)。変数を使用可。BASIN カスケードに参加。 |
 | `js` | string | この要素のスクリプト。ビルド時に IIFE で包まれ、`el` がこの要素(`data-htfl-id` 経由)に束縛される。 |
 | `links` | LinkEntry[] | `<link>` 要素。`rel` / `href`(必須)、`type`(任意)。 |
+| `auto_id` | string | `<body>` 内の要素の **固定 id**(`e17` の形)。Foling が自動で付与し、以後変わりません(→ §5.5)。手で編集しないでください。 |
 
 ---
 
@@ -119,6 +121,7 @@ variables:                 # プロジェクト変数($name で参照)
 class_file_targets:        # 任意: 各クラスファイルが対象とする要素(メタ情報)
   02_component.css: 02_body/02_article
 css_reset: true            # CSS リセットの ON/OFF(省略時 true)
+next_auto_id: 18           # 次に付与する固定 id の番号(Foling が管理)
 ```
 
 | フィールド | 型 | 説明 |
@@ -127,6 +130,7 @@ css_reset: true            # CSS リセットの ON/OFF(省略時 true)
 | `variables` | map | プロジェクト変数。`$name` で `css` / `content` / `attributes` 内から参照。 |
 | `class_file_targets` | map | `classes/` 内の各 CSS ファイルが「どの要素向けか」を示すメタ情報(キー=ファイル名、値=`HTML/` 配下の相対パス)。 |
 | `css_reset` | bool | `true`(既定)でビルド時にリセット CSS を先頭に挿入。`false` でブラウザ既定スタイルを使用。 |
+| `next_auto_id` | int | 次に付与する固定 id の番号。増えるだけで、削除した要素の番号は再利用しません。Foling が管理します。 |
 
 ---
 
@@ -147,6 +151,19 @@ variables:
 css: |
   background-color: $colorMain;   # → background-color: #39b54a;
 ```
+
+### 5.5 要素の id(固定 id)
+
+`<body>` とその中の要素には、**固定 id** が 1 つずつ付きます。
+
+- 形式は `e` + 番号(`e1`, `e17` …)。英字で始まるので、`#e17` は CSS のセレクタとしても `querySelector("#e17")` としても使えます(数字で始まる `#12` は使えません)。
+- 要素を作ったとき(ツリーでの追加、貼り付け、モジュール展開、HTML インポート)に付与され、`config.yaml` の `auto_id` に保存されます。
+- **一度付いた番号は変わりません。** 並べ替え・タグ名の変更・別の要素の追加や削除の影響を受けません。削除した要素の番号は再利用しません(次の番号は `htfl.yaml` の `next_auto_id`)。
+- 貼り付けやモジュール展開で作られた要素は新しい要素なので、新しい番号になります。削除を元に戻した要素は元の番号に戻ります。
+- `auto_id` のないフォルダ(エクスプローラーや AI エージェントが直接作ったもの、固定 id 導入前のプロジェクト)は、Foling がプロジェクトを読み込んだときにツリー順で付与します。既存の `config.yaml` には `auto_id:` の 1 行が追記されるだけで、コメントや書式はそのまま残ります。
+- フォルダのコピーなどで同じ番号が重なった場合は、`config.yaml` が古いほう(元の要素)が番号を保ち、もう一方に新しい番号が付きます。
+
+**出力される id:** 要素自身の `id`(または属性欄に書いた `id`)があればそれを、なければ固定 id を出力します。`<label for="email">` とそれに対応する `id: email` のように、決まった名前が必要な要素には `id` を指定してください。ページ内で同じ id が重なった場合、エディタのツリーと MCP の `htfl_build` が警告します。`<head>` の中の要素と `<html>` には固定 id は付きません。
 
 ---
 
@@ -180,7 +197,7 @@ Foling の **RUN / DEV** または **HTML エクスポート** で、以下の�
 1. `htfl.yaml` の `doctype` を出力。
 2. `HTML/` を再帰的に走査して要素ツリーを構築(`NN_` 順)。
 3. `<head>` に CSS リセット(有効時)+ 各要素 CSS + `classes/` の CSS を `<style>` で出力。
-4. 各要素を属性・class・content とともに出力。未知タグは `<div>` に変換。
+4. 各要素を id(自身の `id`、なければ固定 id)・属性・class・content とともに出力。未知タグは `<div>` に変換。
 5. `js` を持つ要素のスクリプトを末尾にまとめて出力。
 
 ---
@@ -226,8 +243,8 @@ css: |
     <style>/* reset + #...{color:#39b54a} */</style>
     <title>My Page</title>
   </head>
-  <body>
-    <h1 data-htfl-id="...">こんにちは</h1>
+  <body id="e1">
+    <h1 id="e2">こんにちは</h1>
   </body>
 </html>
 ```

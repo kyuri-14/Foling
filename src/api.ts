@@ -44,8 +44,14 @@ export const renameNode = (oldPath: string, newName: string) =>
 export const snapshotSubtree = (nodePath: string) =>
   invoke<NodeSnapshot>("snapshot_subtree", { nodePath });
 
-export const restoreSubtree = (parentPath: string, snapshot: NodeSnapshot) =>
-  invoke<string>("restore_subtree", { parentPath, snapshot });
+// `freshIds`: true when the restored elements are new ones (paste, module
+// expansion) and need new fixed ids; false when undo brings the same elements
+// back under the ids they had.
+export const restoreSubtree = (
+  parentPath: string,
+  snapshot: NodeSnapshot,
+  freshIds = false
+) => invoke<string>("restore_subtree", { parentPath, snapshot, freshIds });
 
 export const readProjectConfig = (projectRoot: string) =>
   invoke<ProjectConfig>("read_project_config", { projectRoot });

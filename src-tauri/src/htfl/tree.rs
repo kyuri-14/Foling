@@ -83,7 +83,11 @@ pub fn read_tree(project_root: String) -> Result<TreeNode, String> {
     if !html_root.exists() {
         fs::create_dir_all(&html_root).map_err(|e| e.to_string())?;
     }
-    build_tree(&html_root).map_err(|e| e.to_string())
+    let mut tree = build_tree(&html_root).map_err(|e| e.to_string())?;
+    // Folders made outside Foling — an agent working in a terminal, a copy in
+    // the file explorer, a project from before fixed ids — get theirs here.
+    assign_missing_ids(&root, &mut tree);
+    Ok(tree)
 }
 
 // ---------- `NN_tag` numbering ----------
@@ -198,7 +202,9 @@ pub fn insert_child(
     retry_io(|| fs::create_dir_all(&dir)).map_err(|e| e.to_string())?;
     let sanitized = sanitize_tag(tag);
     let (_, tag_part) = split_prefix(&sanitized);
-    write_yaml(&dir.join(CONFIG_FILE), &default_config_for_tag(tag_part))?;
+    let mut cfg = default_config_for_tag(tag_part);
+    cfg.auto_id = fresh_id_for(&dir);
+    write_yaml(&dir.join(CONFIG_FILE), &cfg)?;
     Ok(dir)
 }
 

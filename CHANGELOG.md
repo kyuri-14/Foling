@@ -6,6 +6,31 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **Elements keep a fixed id instead of their line number.** Every element in
+  `<body>` gets an id like `e17` when it is created — stored as `auto_id` in its
+  config.yaml, with the counter (`next_auto_id`) in htfl.yaml — and keeps it for
+  good: reordering, changing the tag or adding elements above it no longer
+  changes it, and a deleted element's number is never handed out again. A paste
+  or a module expansion makes new elements with new ids; undoing a delete brings
+  the old id back. The build emits the element's own `id` when it has one, so
+  `<label for>`, `#anchor` links and `#id` CSS work again, and the fixed id
+  otherwise. The ids start with a letter because `#12` is not a valid CSS
+  selector. A project from before this gets its ids, in tree order, the first
+  time it is opened; each config.yaml only gains one line, comments and layout
+  untouched. A folder copied in the file explorer is noticed and given an id of
+  its own.
+- **MCP addresses elements by fixed id.** `e17` and the page id (`#hero`) work
+  as `ref` everywhere, next to line numbers and paths. `htfl_get_tree` shows the
+  fixed id on every row, results name the fixed id alongside the line, and
+  `htfl_build` reports an id used twice in the page.
+
+### Added
+- **The element editor has an id field.** Leave it empty to use the fixed id.
+  It warns when the id is already used by another element, contains spaces, or
+  starts with a digit. The tree shows each element's id at the end of its row:
+  the fixed id in grey, an id of its own in blue, a duplicate in orange.
+
 ## [0.12.12] - 2026-08-06
 
 ### Added

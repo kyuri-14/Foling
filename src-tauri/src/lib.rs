@@ -575,9 +575,15 @@ fn snapshot_subtree(node_path: String) -> Result<NodeSnapshot, String> {
     htfl::snapshot_subtree(node_path)
 }
 
+/// `fresh_ids`: true for a paste or a module expansion (new elements, new
+/// fixed ids), false or absent for undoing a delete (the same elements back).
 #[tauri::command]
-fn restore_subtree(parent_path: String, snapshot: NodeSnapshot) -> Result<String, String> {
-    htfl::restore_subtree(parent_path, snapshot)
+fn restore_subtree(
+    parent_path: String,
+    snapshot: NodeSnapshot,
+    fresh_ids: Option<bool>,
+) -> Result<String, String> {
+    htfl::restore_subtree(parent_path, snapshot, fresh_ids.unwrap_or(false))
 }
 
 #[tauri::command]
@@ -896,7 +902,8 @@ mod tests {
             serde_yml::from_str(include_str!("../../examples/modules/samples.yaml")).unwrap();
         let drawer = mods.iter().find(|m| m.name == "drawermenu").unwrap();
         let body = dir.join(HTML_ROOT).join("02_body");
-        restore_subtree(body.to_string_lossy().into_owned(), drawer.snapshot.clone()).unwrap();
+        restore_subtree(body.to_string_lossy().into_owned(), drawer.snapshot.clone(), true)
+            .unwrap();
 
         let classes = dir.join(CLASSES_DIR);
         fs::create_dir_all(&classes).unwrap();
@@ -947,17 +954,19 @@ mod tests {
         )
         .unwrap();
 
+        // Opening the project gives the hand-made folders their fixed ids.
+        read_tree(dir.to_string_lossy().into_owned()).unwrap();
         let html = generate_html(&dir, false).unwrap();
         let _ = fs::remove_dir_all(&dir);
 
-        // body=1, div=2, section=3, pre=4, code=5. The YAML block scalar strips
-        // its own common indent, so the second line keeps two spaces.
+        // body=e1, div=e2, section=e3, pre=e4, code=e5. The YAML block scalar
+        // strips its own common indent, so the second line keeps two spaces.
         assert!(
-            html.contains("<pre id=\"4\"><code id=\"5\">line one\n  indented by two</code></pre>"),
+            html.contains("<pre id=\"e4\"><code id=\"e5\">line one\n  indented by two</code></pre>"),
             "pre content must survive verbatim, got:\n{html}"
         );
         // Nothing may sit between <pre> and <code>, or before </pre>.
-        assert!(!html.contains("<pre id=\"4\">\n"), "no newline after <pre>");
+        assert!(!html.contains("<pre id=\"e4\">\n"), "no newline after <pre>");
 
         // Normal elements keep their indentation.
         assert!(html.contains("\n  <body"), "body is still indented");
@@ -997,13 +1006,14 @@ mod tests {
         )
         .unwrap();
 
+        read_tree(dir.to_string_lossy().into_owned()).unwrap();
         let html = generate_html(&dir, false).unwrap();
         let _ = fs::remove_dir_all(&dir);
 
-        // Exactly one of each attribute on the div.
+        // Exactly one of each attribute on the div (fixed id e2: body is e1).
         let div_line = html
             .lines()
-            .find(|l| l.contains("id=\"2\""))
+            .find(|l| l.contains("id=\"e2\""))
             .unwrap_or("");
         assert_eq!(div_line.matches(" style=").count(), 1, "one style: {div_line}");
         assert_eq!(div_line.matches(" class=").count(), 1, "one class: {div_line}");
@@ -1016,6 +1026,43 @@ mod tests {
             html.contains("<link rel=\"stylesheet\" href=\"/x.css\" />"),
             "link on a non-head element must be emitted:\n{html}"
         );
+    }
+
+    #[test]
+    fn an_id_the_user_chose_wins_over_the_fixed_id() {
+        let dir = std::env::temp_dir().join(format!(
+            "foling_userid_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let root = dir.to_string_lossy().into_owned();
+        init_project(root.clone(), None).unwrap();
+        let body = dir.join(HTML_ROOT).join("02_body").to_string_lossy().into_owned();
+        let label = create_node(body.clone(), "01_label".into()).unwrap();
+        let input = create_node(body.clone(), "02_input".into()).unwrap();
+        let plain = create_node(body, "03_p".into()).unwrap();
+        read_tree(root.clone()).unwrap();
+
+        let mut l = read_node(label.clone()).unwrap();
+        l.attributes.insert("for".into(), "email".into());
+        write_node(label, l).unwrap();
+        let mut i = read_node(input.clone()).unwrap();
+        i.id = Some("email".into());
+        write_node(input.clone(), i).unwrap();
+        let p_id = read_node(plain).unwrap().auto_id.unwrap();
+
+        let html = generate_html(&dir, false).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+        // The label still points at its input: the chosen id is emitted as is.
+        assert!(html.contains("for=\"email\""), "{html}");
+        assert!(html.contains("<input id=\"email\""), "{html}");
+        // An element without an id of its own carries its fixed id.
+        assert!(html.contains(&format!("<p id=\"{p_id}\"")), "{html}");
+        // <head> content gets no fixed id.
+        assert!(!html.contains("<meta id="), "{html}");
     }
 
     #[test]

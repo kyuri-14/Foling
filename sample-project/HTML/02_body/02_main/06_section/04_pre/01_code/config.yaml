@@ -3,3 +3,4 @@ content: |
     el.addEventListener('click', () => {
       el.textContent = '動きました';
     });
+auto_id: e39

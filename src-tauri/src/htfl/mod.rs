@@ -8,6 +8,7 @@
 //! Named `htfl` rather than `core` because `core` is a built-in crate name.
 
 pub mod build;
+pub mod ids;
 pub mod import;
 pub mod lock;
 pub mod node;
@@ -17,6 +18,7 @@ pub mod tree;
 pub mod types;
 
 pub use build::*;
+pub use ids::*;
 pub use import::*;
 pub use lock::*;
 pub use node::*;

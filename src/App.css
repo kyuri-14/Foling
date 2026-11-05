@@ -2837,6 +2837,14 @@ button.secondary {
   border-radius: 6px;
   color: #e8edf2;
 }
+.elem-id-field { margin-top: 0; }
+.elem-id-field > input { font-family: var(--font-mono); }
+.elem-id-help {
+  margin: 6px 0 0 74px;
+  font-size: 0.78rem;
+  color: #7c8696;
+}
+.elem-id-help.is-problem { color: #f0a35e; }
 .element-edit-foot {
   display: flex;
   justify-content: flex-end;
@@ -2927,6 +2935,19 @@ button.secondary {
   flex: 1 1 8px;
   min-width: 8px;
 }
+/* Element id: the fixed id (muted), or the user's own id (accent). */
+.tree-row-id {
+  flex: 0 0 auto;
+  margin-right: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: #5f6878;
+  white-space: nowrap;
+}
+.tree-row-id.is-own { color: #7fb3e0; }
+.tree-row-id.is-duplicate { color: #f0a35e; }
+.tree-row.selected .tree-row-id { color: rgba(255, 255, 255, 0.75); }
+.tree-row.selected .tree-row-id.is-duplicate { color: #ffd0a6; }
 .tree-badge {
   flex: 0 0 auto;
   font-size: 10px;

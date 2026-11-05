@@ -133,6 +133,7 @@ interface NodeConfig {
   css?: string;
   js?: string;
   links: { rel: string; href: string; type?: string }[];
+  auto_id?: string;      // <body> 内の要素の固定 id(例 "e17")。id 未指定時はこれが出力される
 }
 ```
 
