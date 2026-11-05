@@ -82,6 +82,35 @@ export const ja: LocaleDict = {
 
   // Element editor modal
   "Edit element — line": "要素を編集 — 行",
+  "<{tag}> is never closed, so it is shown as text.":
+    "<{tag}> が閉じていないため、文字として表示されます。",
+  "</{tag}> closes nothing, so it is shown as text.":
+    "</{tag}> に対応する開始タグがないため、文字として表示されます。",
+  '<{tag}> cannot have the attribute "{attr}" inside text, so it is shown as text.':
+    '本文中の <{tag}> には属性 "{attr}" を付けられないため、文字として表示されます。',
+  "This link address is not allowed (use http, https, mailto, tel or a relative address), so the tag is shown as text.":
+    "このリンク先は使えません（http / https / mailto / tel / 相対パスのみ）。タグは文字として表示されます。",
+  "A link cannot contain another link, so the inner <a> is shown as text.":
+    "リンクの中にリンクは入れられないため、内側の <a> は文字として表示されます。",
+  "<{tag}/> cannot be self-closing, so it is shown as text.":
+    "<{tag}/> のような省略形は使えないため、文字として表示されます。",
+  Bold: "太字",
+  Emphasis: "強調",
+  Highlight: "マーカー",
+  Link: "リンク",
+  Code: "コード",
+  Ruby: "ルビ",
+  "reading above the text": "文字の上に読みを付ける",
+  "Address: https://…, #id or page.html": "リンク先: https://…、#id、page.html など",
+  "Reading (e.g. かんじ)": "読み（例: かんじ）",
+  Insert: "挿入",
+  "A line break is a line break on the page. Tags allowed in text: a, strong, em, b, i, u, s, mark, small, code, kbd, sub, sup, span, br, ruby, rt, rp.":
+    "改行はページでも改行になります。本文に書けるタグ: a, strong, em, b, i, u, s, mark, small, code, kbd, sub, sup, span, br, ruby, rt, rp",
+  "Shown as written: tags are not interpreted here. A line break is a line break on the page.":
+    "書いたとおりに表示されます（タグとして扱いません）。改行はページでも改行になります。",
+  "Shown as written: no tags and no line breaks (this element keeps its text as is).":
+    "書いたとおりに出力されます（この要素ではタグも改行の変換もしません）。",
+  Preview: "プレビュー",
   "Stacking order is compared level by level from the top, like version numbers. A grey z-index has no effect.":
     "重なり順は、バージョン番号のように上の階層から順に比べます。灰色の z-index は効いていません。",
   self: "自身",

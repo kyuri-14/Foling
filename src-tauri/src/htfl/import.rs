@@ -58,9 +58,12 @@ fn write_imported_element(
     folder: &Path,
     ctx: &mut ImportCtx,
     in_body: bool,
+    in_pre: bool,
 ) -> Result<(), String> {
     let tag_name = el.value().name().to_ascii_lowercase();
     let in_body = in_body || tag_name == "body";
+    let mode = text_mode(&tag_name, in_pre);
+    let in_pre = in_pre || tag_name == "pre" || tag_name == "textarea";
 
     let mut cfg = NodeConfig::default();
     apply_attrs(el.value(), &mut cfg);
@@ -69,17 +72,39 @@ fn write_imported_element(
         ctx.next_id += 1;
     }
 
-    // Direct text content (skip script/style — handled separately).
+    // Text with only inline tags in it — a paragraph with a link or a bold
+    // word, ruby — is stored as content with those tags, in order. Folders for
+    // the inline elements would put all the text first and the elements after
+    // it, scrambling the sentence.
+    let link = tag_name == "a";
+    if mode != TextMode::Raw && el.children().next().is_some() && importable_inline(el, link) {
+        let text = import_inline_content(el);
+        if !text.is_empty() {
+            cfg.content = Some(text);
+        }
+        fs::create_dir_all(folder).map_err(|e| e.to_string())?;
+        return write_yaml(&folder.join(CONFIG_FILE), &cfg);
+    }
+
+    // Otherwise: the element's own text runs, then its children as folders
+    // (skip script/style — handled separately).
     if tag_name != "script" && tag_name != "style" {
         let mut text = String::new();
         for child in el.children() {
             if let Some(t) = child.value().as_text() {
-                let s = t.trim();
+                // Source layout is not content — and a line break in content
+                // now means <br> — so white space collapses, except where it
+                // is content (inside <pre>).
+                let s = if mode == TextMode::Raw {
+                    t.trim().to_string()
+                } else {
+                    collapse_html_whitespace(t)
+                };
                 if !s.is_empty() {
                     if !text.is_empty() {
                         text.push(' ');
                     }
-                    text.push_str(s);
+                    text.push_str(&s);
                 }
             }
         }
@@ -128,7 +153,7 @@ fn write_imported_element(
 
         let child_folder =
             folder.join(format!("{:02}_{}", order, sanitize_tag(&ctag)));
-        write_imported_element(child_el, &child_folder, ctx, in_body)?;
+        write_imported_element(child_el, &child_folder, ctx, in_body, in_pre)?;
         order += 1;
     }
     Ok(())
@@ -173,7 +198,7 @@ pub fn import_html(html_path: String, dest_root: String) -> Result<String, Strin
         };
         let ctag = child_el.value().name().to_ascii_lowercase();
         let folder = html_folder.join(format!("{:02}_{}", order, sanitize_tag(&ctag)));
-        write_imported_element(child_el, &folder, &mut ctx, false)?;
+        write_imported_element(child_el, &folder, &mut ctx, false, false)?;
         order += 1;
     }
 

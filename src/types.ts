@@ -164,3 +164,14 @@ export const emptyConfig = (): NodeConfig => ({
   attributes: {},
   links: [],
 });
+
+/** An element's content as the page will show it (editor live preview). */
+export interface InlinePreview {
+  /** "rich": inline tags are markup · "literal": all text · "raw": as written,
+   *  no <br> (script, style, title, textarea, option, inside <pre>). */
+  mode: "rich" | "literal" | "raw";
+  /** Safe HTML: only allowed inline tags, everything else escaped. */
+  html: string;
+  /** Tag-like text that will show up as text, and why. */
+  issues: { kind: string; tag: string; detail: string }[];
+}

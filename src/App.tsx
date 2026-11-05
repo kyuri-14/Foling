@@ -38,6 +38,7 @@ import {
   readImageFolders,
   readPluginScript,
   readPlugins,
+  renderInline,
   writeTextFile,
   readNode,
   readProjectConfig,
@@ -71,6 +72,13 @@ import {
 import { countMatches, highlight, markMatches } from "./syntax";
 import { chainText, StackLevel, stackingChain } from "./zIndexChain";
 import {
+  linkOpenTag,
+  TextEdit,
+  textModeOf,
+  wrapRuby,
+  wrapSelection,
+} from "./inlineMarkup";
+import {
   buildReport,
   capturedErrors,
   HOME_MARK,
@@ -94,6 +102,7 @@ import {
   SnippetEntry,
   emptyConfig,
   HeadConfig,
+  InlinePreview,
   NodeConfig,
   NodeSnapshot,
   ProjectConfig,
@@ -543,6 +552,17 @@ function getViewRoot(
   return { ...tree, children: [target] };
 }
 
+// Whether the element at `path` sits inside <pre> or <textarea>, where its
+// text is shown exactly as written.
+function isInPre(tree: TreeNode | null, path: string | null): boolean {
+  if (!tree || !path) return false;
+  return (findPath(tree, path) ?? [])
+    .slice(0, -1)
+    .some((n) =>
+      ["pre", "textarea"].includes((n.config?.tag ?? n.display_name ?? "").toLowerCase())
+    );
+}
+
 // Find the parent of the node whose path equals `target` inside `root`.
 // Returns null if `target` is not in the tree or is the root itself.
 function parentNode(root: TreeNode, target: string): TreeNode | null {
@@ -591,9 +611,9 @@ function syncRowsFromTree(
     if (r.actualPath) oldByPath.set(r.actualPath, r);
   }
   const out: FlatRow[] = [];
-  function walk(n: TreeNode, depth: number) {
+  function walk(n: TreeNode, depth: number, inPre: boolean) {
     const old = oldByPath.get(n.path);
-    const meta = rowMetaFromConfig(n.display_name || n.name, n.config ?? {});
+    const meta = rowMetaFromConfig(n.display_name || n.name, n.config ?? {}, inPre);
     out.push({
       id: pathToId?.get(n.path) ?? old?.id ?? n.path,
       depth,
@@ -606,9 +626,10 @@ function syncRowsFromTree(
       autoId: n.config?.auto_id,
       ownId: ownIdOf(n.config ?? {}),
     });
-    for (const c of n.children) walk(c, depth + 1);
+    const tag = (n.config?.tag ?? n.display_name ?? "").toLowerCase();
+    for (const c of n.children) walk(c, depth + 1, inPre || tag === "pre" || tag === "textarea");
   }
-  for (const c of tree.children) walk(c, 0);
+  for (const c of tree.children) walk(c, 0, false);
   return out;
 }
 
@@ -1913,7 +1934,7 @@ export default function App() {
         r.actualPath === selectedPath
           ? {
               ...r,
-              ...rowMetaFromConfig(r.name, config),
+              ...rowMetaFromConfig(r.name, config, isInPre(tree, selectedPath)),
               autoId: config.auto_id ?? r.autoId,
               ownId: ownIdOf(config),
             }
@@ -3844,6 +3865,7 @@ export default function App() {
       {elementEdit && selectedPath && (
         <ElementEditModal
           lineNumber={elementEdit.lineNumber}
+          inPre={isInPre(tree, selectedPath)}
           usedIds={
             new Set(
               rows
@@ -6613,10 +6635,42 @@ function CssBareEditor(props: {
   );
 }
 
+// One line per kind of problem the builder reports for inline tags.
+function inlineIssueText(i: InlinePreview["issues"][number]): string {
+  switch (i.kind) {
+    case "unclosed":
+      return t("<{tag}> is never closed, so it is shown as text.").replace("{tag}", i.tag);
+    case "stray-close":
+      return t("</{tag}> closes nothing, so it is shown as text.").replace("{tag}", i.tag);
+    case "attribute":
+      return t('<{tag}> cannot have the attribute "{attr}" inside text, so it is shown as text.')
+        .replace("{tag}", i.tag)
+        .replace("{attr}", i.detail);
+    case "href":
+      return t(
+        "This link address is not allowed (use http, https, mailto, tel or a relative address), so the tag is shown as text."
+      );
+    case "nested-link":
+      return t("A link cannot contain another link, so the inner <a> is shown as text.");
+    default:
+      return t("<{tag}/> cannot be self-closing, so it is shown as text.").replace(
+        "{tag}",
+        i.tag
+      );
+  }
+}
+
+// Shortcut label in the host platform's own keys.
+const chord = (key: string) => (IS_MAC ? `⌘${key}` : `Ctrl+${key}`);
+
 function ContentEditor(props: {
   value: string;
   onChange: (v: string) => void;
   autoFocus?: boolean;
+  /** The element the text belongs to, and whether it sits inside <pre>:
+   *  together they decide whether inline tags and line breaks apply. */
+  tag: string;
+  inPre: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   // Focus on mount and place the caret at the end, so the user can type
@@ -6628,8 +6682,148 @@ function ContentEditor(props: {
       ta.setSelectionRange(ta.value.length, ta.value.length);
     }
   }, [props.autoFocus]);
+
+  const mode = textModeOf(props.tag, props.inPre);
+  const rich = mode === "rich";
+
+  // Live preview, rendered by the builder's own code so it cannot disagree
+  // with the page about which tags count.
+  const [preview, setPreview] = useState<InlinePreview | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const id = window.setTimeout(() => {
+      renderInline(props.value, props.tag, props.inPre)
+        .then((p) => !cancelled && setPreview(p))
+        .catch(() => !cancelled && setPreview(null));
+    }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
+  }, [props.value, props.tag, props.inPre]);
+
+  // A link address or a ruby reading being typed in the toolbar. The
+  // selection is remembered because focus moves into that field.
+  const [ask, setAsk] = useState<{
+    kind: "link" | "ruby";
+    text: string;
+    start: number;
+    end: number;
+  } | null>(null);
+
+  function apply(edit: TextEdit) {
+    props.onChange(edit.value);
+    window.setTimeout(() => {
+      const ta = ref.current;
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(edit.start, edit.end);
+    }, 0);
+  }
+  function wrap(open: string, close: string) {
+    const ta = ref.current;
+    if (!ta) return;
+    apply(wrapSelection(props.value, ta.selectionStart, ta.selectionEnd, open, close));
+  }
+  function startAsk(kind: "link" | "ruby") {
+    const ta = ref.current;
+    if (!ta) return;
+    setAsk({ kind, text: "", start: ta.selectionStart, end: ta.selectionEnd });
+  }
+  function finishAsk() {
+    if (!ask) return;
+    const v = ask.text.trim();
+    setAsk(null);
+    if (!v) {
+      ref.current?.focus();
+      return;
+    }
+    apply(
+      ask.kind === "link"
+        ? wrapSelection(props.value, ask.start, ask.end, linkOpenTag(v), "</a>")
+        : wrapRuby(props.value, ask.start, ask.end, v)
+    );
+  }
+
+  const tools: { label: string; title: string; run: () => void; cls?: string }[] = [
+    { label: "B", cls: "is-bold", title: `${t("Bold")} <strong> (${chord("B")})`, run: () => wrap("<strong>", "</strong>") },
+    { label: "I", cls: "is-italic", title: `${t("Emphasis")} <em> (${chord("I")})`, run: () => wrap("<em>", "</em>") },
+    { label: t("Highlight"), title: `<mark> (${chord(IS_MAC ? "⇧H" : "Shift+H")})`, run: () => wrap("<mark>", "</mark>") },
+    { label: t("Link"), title: `<a href> (${chord("K")})`, run: () => startAsk("link") },
+    { label: t("Code"), title: `<code> (${chord("E")})`, run: () => wrap("<code>", "</code>") },
+    { label: t("Ruby"), title: `<ruby><rt> — ${t("reading above the text")}`, run: () => startAsk("ruby") },
+  ];
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (!rich) return;
+    const mod = IS_MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+    if (!mod || e.altKey) return;
+    const k = e.key.toLowerCase();
+    const run = (f: () => void) => {
+      e.preventDefault();
+      f();
+    };
+    if (!e.shiftKey && k === "b") run(() => wrap("<strong>", "</strong>"));
+    else if (!e.shiftKey && k === "i") run(() => wrap("<em>", "</em>"));
+    else if (!e.shiftKey && k === "k") run(() => startAsk("link"));
+    else if (!e.shiftKey && k === "e") run(() => wrap("<code>", "</code>"));
+    else if (e.shiftKey && k === "h") run(() => wrap("<mark>", "</mark>"));
+  }
+
+  // Links in the preview must not navigate the editor window away.
+  const holdLinks = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("a")) e.preventDefault();
+  };
+
   return (
     <div className="content-editor">
+      {rich && (
+        <div className="content-toolbar">
+          {tools.map((tool) => (
+            <button
+              key={tool.label}
+              type="button"
+              className={`content-tool ${tool.cls ?? ""}`}
+              title={tool.title}
+              // Keep the selection in the textarea when the button is clicked.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={tool.run}
+            >
+              {tool.label}
+            </button>
+          ))}
+          {ask && (
+            <span className="content-ask">
+              <input
+                autoFocus
+                value={ask.text}
+                spellCheck={false}
+                placeholder={
+                  ask.kind === "link"
+                    ? t("Address: https://…, #id or page.html")
+                    : t("Reading (e.g. かんじ)")
+                }
+                onChange={(e) => setAsk({ ...ask, text: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    finishAsk();
+                  } else if (e.key === "Escape") {
+                    // Cancel this field only, not the whole editor.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setAsk(null);
+                    ref.current?.focus();
+                  }
+                }}
+              />
+              <button type="button" onClick={finishAsk}>
+                {t("Insert")}
+              </button>
+            </span>
+          )}
+        </div>
+      )}
       <textarea
         ref={ref}
         className="content-textarea"
@@ -6637,7 +6831,33 @@ function ContentEditor(props: {
         value={props.value}
         placeholder={t("Text shown inside this tag...")}
         onChange={(e) => props.onChange(e.target.value)}
+        onKeyDown={onKeyDown}
       />
+      <div className="content-hint">
+        {rich
+          ? t(
+              "A line break is a line break on the page. Tags allowed in text: a, strong, em, b, i, u, s, mark, small, code, kbd, sub, sup, span, br, ruby, rt, rp."
+            )
+          : mode === "literal"
+          ? t("Shown as written: tags are not interpreted here. A line break is a line break on the page.")
+          : t("Shown as written: no tags and no line breaks (this element keeps its text as is).")}
+      </div>
+      {preview && preview.html.trim() !== "" && mode !== "raw" && (
+        <div
+          className="content-preview"
+          title={t("Preview")}
+          onClickCapture={holdLinks}
+          onAuxClick={holdLinks}
+          dangerouslySetInnerHTML={{ __html: preview.html }}
+        />
+      )}
+      {preview && preview.issues.length > 0 && (
+        <ul className="content-issues">
+          {preview.issues.map((issue, i) => (
+            <li key={i}>⚠ {inlineIssueText(issue)}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -6730,6 +6950,8 @@ function ElementEditModal(props: {
   tag: string;
   /** Page ids of every *other* element, to catch a duplicate as it is typed. */
   usedIds: Set<string>;
+  /** The element sits inside <pre> / <textarea>: its text is kept as written. */
+  inPre: boolean;
   config: NodeConfig;
   update: <K extends keyof NodeConfig>(k: K, v: NodeConfig[K]) => void;
   imageFolders: ImageFolder[];
@@ -6855,6 +7077,8 @@ function ElementEditModal(props: {
                 value={c.content ?? ""}
                 onChange={(v) => props.update("content", v || undefined)}
                 autoFocus
+                tag={props.tag}
+                inPre={props.inPre}
               />
             </div>
           ) : (

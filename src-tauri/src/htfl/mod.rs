@@ -10,6 +10,7 @@
 pub mod build;
 pub mod ids;
 pub mod import;
+pub mod inline;
 pub mod lock;
 pub mod node;
 pub mod plugin;
@@ -20,6 +21,7 @@ pub mod types;
 pub use build::*;
 pub use ids::*;
 pub use import::*;
+pub use inline::*;
 pub use lock::*;
 pub use node::*;
 pub use plugin::*;

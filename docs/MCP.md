@@ -128,7 +128,7 @@ args = ['--project', 'C:\path\to\my-site']
 | ツール | 内容 |
 |---|---|
 | `htfl_insert_element` | 子要素を作成。**`NN_` は自動採番**、途中挿入時のみ後続をリナンバ |
-| `htfl_update_element` | 部分パッチ。属性はマージ（値 `null` で削除）、`content`/`css`/`js` は `null` でクリア |
+| `htfl_update_element` | 部分パッチ。属性はマージ（値 `null` で削除）、`content`/`css`/`js` は `null` でクリア。`content` にはリンク・強調などのタグを書ける（[仕様 §3.1](HTFL-SPEC.md)） |
 | `htfl_rename_element` | タグ変更（連番・設定・子要素は保持） |
 | `htfl_move_element` | 親・位置の変更（サブツリーごと移動） |
 | `htfl_delete_element` | サブツリーごと削除 |
@@ -150,6 +150,7 @@ args = ['--project', 'C:\path\to\my-site']
 - void 要素に付いた本文・子要素（出力されない）
 - 空の `href` / `src`
 - ページ内で重複している `id`
+- 本文に書いたタグのうち、文字として表示されてしまうもの(閉じていない、使えない属性・URL など)
 
 いずれも「ビルドは通るが結果が間違っている」類の失敗です。編集後は必ず `htfl_build` を実行してください。
 

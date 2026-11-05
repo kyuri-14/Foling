@@ -40,12 +40,18 @@ htfl_update_element), otherwise its fixed id.
 ordinal and the fixed id.
 - <head> is a project setting, not a tree element. Page title, meta description, \
 OGP and favicon go through htfl_update_project, not htfl_insert_element.
+- Element text (`content`) may contain the inline tags a, strong, em, b, i, u, s, \
+mark, small, code, kbd, sub, sup, span, br, ruby, rt, rp (with class/id/title, and \
+href/target/rel on a). Anything else, or an unclosed tag, is shown as text. A line \
+break in content becomes <br>. Use a child element, not inline tags, for anything \
+that needs its own CSS or JS.
 - Element CSS (the `css` field) is a list of declarations without a selector or \
 braces, e.g. \"padding: 1rem;\". Shared classes go in classes/*.css via \
 htfl_write_class_file.
 - Run htfl_build when done. It writes nothing and reports the mistakes that \
 would otherwise pass silently: unknown tags falling back to <div>, classes with \
-no definition, content on void elements, empty href/src.";
+no definition, content on void elements, empty href/src, duplicate ids, inline \
+tags that end up as text.";
 
 pub struct Server {
     workspace: Workspace,

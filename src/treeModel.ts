@@ -7,6 +7,8 @@
 // testable in isolation (see treeModel.test.ts) and decouples the core
 // folder-naming / flattening logic from the giant App component.
 
+import { plainTextOfContent, textModeOf } from "./inlineMarkup";
+
 export interface FlatRow {
   id: string;
   depth: number;
@@ -65,7 +67,9 @@ export function rowMetaFromConfig(
     css?: string;
     content?: string;
     attributes?: Record<string, string>;
-  }
+  },
+  /** The element sits inside <pre> / <textarea>, where text is shown as written. */
+  inPre = false
 ): RowMeta {
   const css = config.css ?? "";
   const attrs = config.attributes ?? {};
@@ -96,7 +100,12 @@ export function rowMetaFromConfig(
   if (tag === "img" && attrs.src) imageLabel = basenameOf(attrs.src);
   else if (/background-image\s*:\s*url\(/i.test(css)) imageLabel = "bg-image";
 
-  const content = config.content?.trim() || undefined;
+  // Inline tags (<a>, <strong>, …) are markup, not text a reader sees —
+  // except where text is shown as written (code, inside <pre>, …).
+  const content =
+    textModeOf(tag, inPre) === "rich"
+      ? plainTextOfContent(config.content)
+      : config.content?.replace(/\s+/g, " ").trim() || undefined;
   return { content, imageLabel, badges };
 }
 

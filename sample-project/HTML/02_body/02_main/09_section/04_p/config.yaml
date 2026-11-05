@@ -1,0 +1,5 @@
+classes:
+  - note
+content: |
+  使えるタグは a / strong / em / b / i / u / s / mark / small / code / kbd / sub / sup / span / br / ruby / rt / rp です。それ以外のタグや閉じていないタグは、文字のまま表示されます。
+auto_id: e58

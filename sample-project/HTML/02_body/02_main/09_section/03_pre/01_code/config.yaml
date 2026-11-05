@@ -1,0 +1,5 @@
+content: |
+  content: |
+    本文には <strong>強調</strong>、<mark>マーカー</mark>、
+    <a href="#e46">ページ内リンク</a> を書けます。
+auto_id: e57

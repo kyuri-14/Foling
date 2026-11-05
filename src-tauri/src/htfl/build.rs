@@ -410,10 +410,26 @@ pub fn render_node(
                     out.push_str(&escape_html(line));
                 }
             } else {
-                for line in content_text.lines() {
-                    out.push_str(&"  ".repeat(depth + 1));
-                    out.push_str(&escape_html(line));
-                    out.push('\n');
+                match text_mode(&tag, false) {
+                    // script / style / title / textarea / option: as before.
+                    TextMode::Raw => {
+                        for line in content_text.lines() {
+                            out.push_str(&"  ".repeat(depth + 1));
+                            out.push_str(&escape_html(line));
+                            out.push('\n');
+                        }
+                    }
+                    // Allowed inline tags are markup and a line break is <br>.
+                    // One output line: a newline between two runs of Japanese
+                    // text would show up on the page as a space.
+                    mode => {
+                        let rendered = render_content(content_text, mode, &tag);
+                        if !rendered.html.is_empty() {
+                            out.push_str(&"  ".repeat(depth + 1));
+                            out.push_str(&rendered.html);
+                            out.push('\n');
+                        }
+                    }
                 }
             }
         }

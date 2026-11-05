@@ -27,6 +27,17 @@ function attrs(cfg) {
   return out.length ? " " + out.join(" ") : "";
 }
 
+// Element text may hold inline tags (<a>, <strong>, …) and line breaks,
+// which the page renders as <br>. JSX wants <br /> and className.
+function contentToJsx(text) {
+  return text
+    .replace(/\r\n?/g, "\n")
+    .replace(/\n+$/, "")
+    .replace(/<br\s*\/?>/gi, "<br />")
+    .replace(/<([a-z]+)([^<>]*?)\sclass=/gi, "<$1$2 className=")
+    .replace(/\n/g, "<br />");
+}
+
 function walk(node, depth) {
   const pad = "  ".repeat(depth);
   const tag = node.display_name || node.name;
@@ -38,7 +49,7 @@ function walk(node, depth) {
   const kids = (node.children || [])
     .map((c) => walk(c, depth + 1))
     .filter(Boolean);
-  const content = cfg.content ? `${pad}  ${cfg.content}` : "";
+  const content = cfg.content ? `${pad}  ${contentToJsx(cfg.content)}` : "";
   const inner = [content, ...kids].filter(Boolean).join("\n");
 
   if (!inner) return `${pad}<${tag}${a} />`;

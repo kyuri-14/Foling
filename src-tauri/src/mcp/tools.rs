@@ -113,7 +113,7 @@ pub fn list() -> Vec<Tool> {
                     "parent": ref_schema("Parent element: fixed id, line number, page id or path relative to HTML/."),
                     "tag": { "type": "string", "description": "HTML tag name, e.g. \"section\"." },
                     "position": { "type": "integer", "minimum": 1, "description": "1-based position among the parent's children. Omit to append last." },
-                    "content": { "type": "string", "description": "Optional text content for the new element." },
+                    "content": { "type": "string", "description": "Optional text content. May contain the inline tags a, strong, em, b, i, u, s, mark, small, code, kbd, sub, sup, span, br, ruby, rt, rp; a line break becomes <br>." },
                     "classes": { "type": "array", "items": { "type": "string" }, "description": "Optional classes to apply." },
                     "css": { "type": "string", "description": "Optional per-element CSS declarations, one per line (e.g. \"padding: 1rem;\")." },
                     "attributes": { "type": "object", "description": "Optional HTML attributes." }
@@ -131,7 +131,7 @@ pub fn list() -> Vec<Tool> {
                 "type": "object",
                 "properties": {
                     "ref": ref_schema("Fixed id, line number, page id or path relative to HTML/."),
-                    "content": { "type": ["string", "null"], "description": "Text content. null clears it." },
+                    "content": { "type": ["string", "null"], "description": "Text content. These inline tags may be written inside it: a (href, target, rel), strong, em, b, i, u, s, mark, small, code, kbd, sub, sup, span, br, ruby, rt, rp — each may carry class, id, title. Anything else, or a tag left unclosed, is shown as text. A line break becomes <br>. Inside code/kbd text is shown as written. null clears it." },
                     "css": { "type": ["string", "null"], "description": "Per-element CSS declarations, one per line. null clears it." },
                     "js": { "type": ["string", "null"], "description": "Per-element JavaScript; `el` is bound to this element. Not emitted when output_mode is \"ssr\". null clears it." },
                     "classes": { "type": "array", "items": { "type": "string" }, "description": "Replaces the applied class list." },
@@ -424,6 +424,7 @@ fn get_tree(ws: &Workspace, args: &Value) -> Result<String, String> {
         dir: &Path,
         depth: usize,
         max_depth: usize,
+        in_pre: bool,
         out: &mut String,
     ) -> Result<(), String> {
         let cfg = htfl::read_node(dir.to_string_lossy().into_owned()).unwrap_or_default();
@@ -448,7 +449,15 @@ fn get_tree(ws: &Workspace, args: &Value) -> Result<String, String> {
             let _ = write!(row, " →{}", preview(href, 40));
         }
         if let Some(c) = cfg.content.as_deref().filter(|c| !c.trim().is_empty()) {
-            let _ = write!(row, " \"{}\"", preview(c, 40));
+            // What a reader sees: inline tags are markup, except where text is
+            // shown as written (code, inside <pre>, …).
+            let mode = htfl::text_mode(&htfl::resolve_tag(&tag), in_pre);
+            let shown = if mode == htfl::TextMode::Rich {
+                htfl::plain_text(c)
+            } else {
+                c.to_string()
+            };
+            let _ = write!(row, " \"{}\"", preview(&shown, 40));
         }
         if cfg.css.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false) {
             row.push_str(" ~css");
@@ -474,13 +483,15 @@ fn get_tree(ws: &Workspace, args: &Value) -> Result<String, String> {
             }
             return Ok(());
         }
+        let lower = tag.to_ascii_lowercase();
+        let child_in_pre = in_pre || lower == "pre" || lower == "textarea";
         for name in htfl::sibling_names(dir).map_err(|e| e.to_string())? {
-            walk(ws, &dir.join(name), depth + 1, max_depth, out)?;
+            walk(ws, &dir.join(name), depth + 1, max_depth, child_in_pre, out)?;
         }
         Ok(())
     }
 
-    walk(ws, &start, 0, max_depth, &mut out)?;
+    walk(ws, &start, 0, max_depth, false, &mut out)?;
     Ok(out)
 }
 
@@ -976,6 +987,21 @@ fn diagnostics(ws: &Workspace) -> Result<Vec<String>, String> {
         let wanted = cfg.tag.clone().unwrap_or_else(|| folder_tag.to_string());
         let actual = htfl::resolve_tag(&wanted);
 
+        // Inline tags written into the content that will show up as text.
+        if let Some(content) = cfg.content.as_deref() {
+            let in_pre = path
+                .ancestors()
+                .skip(1)
+                .take_while(|a| a.starts_with(ws.html_root()))
+                .any(|a| matches!(ws.tag_of(a).to_ascii_lowercase().as_str(), "pre" | "textarea"));
+            let mode = htfl::text_mode(&actual, in_pre);
+            if mode != htfl::TextMode::Raw {
+                for issue in htfl::render_content(content, mode, &actual).issues {
+                    out.push(format!("L{line} content: {}", issue.describe()));
+                }
+            }
+        }
+
         if actual != wanted.to_ascii_lowercase() {
             out.push(format!(
                 "L{line} <{wanted}> is not a known HTML tag — it will render as <{actual}>"
@@ -1177,6 +1203,24 @@ mod tests {
         call(&ws, "htfl_update_element", &json!({ "ref": "L2", "id": "same" })).unwrap();
         let out = call(&ws, "htfl_build", &json!({})).unwrap();
         assert!(out.contains("id \"same\" is also used by"), "{out}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn build_reports_inline_tags_that_show_up_as_text() {
+        let dir = scaffold("inlinediag");
+        let ws = Workspace::open(&dir, false).unwrap();
+        call(
+            &ws,
+            "htfl_insert_element",
+            &json!({ "parent": "02_body", "tag": "p", "content": "<strong>open and <a href=\"javascript:x\">bad</a>" }),
+        )
+        .unwrap();
+        let out = call(&ws, "htfl_build", &json!({})).unwrap();
+        assert!(out.contains("L2 content: <strong> is never closed"), "{out}");
+        assert!(out.contains("not an allowed URL"), "{out}");
+        let tree = call(&ws, "htfl_get_tree", &json!({})).unwrap();
+        assert!(tree.contains("\"<strong>open and"), "preview is plain text: {tree}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

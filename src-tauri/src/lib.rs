@@ -674,6 +674,35 @@ fn write_text_file(dest: String, content: String) -> Result<(), String> {
     htfl::write_text_file(dest, content)
 }
 
+/// What an element's content will look like on the page, for the editor's
+/// live preview — rendered by the same code as the build, so the two cannot
+/// disagree about which tags count.
+#[derive(Serialize)]
+struct InlinePreview {
+    mode: htfl::TextMode,
+    html: String,
+    issues: Vec<htfl::InlineIssue>,
+}
+
+#[tauri::command]
+fn render_inline(content: String, tag: String, in_pre: Option<bool>) -> InlinePreview {
+    let tag = tag.to_ascii_lowercase();
+    let mode = htfl::text_mode(&tag, in_pre.unwrap_or(false));
+    if mode == htfl::TextMode::Raw {
+        return InlinePreview {
+            mode,
+            html: htfl::escape_html(&content),
+            issues: Vec::new(),
+        };
+    }
+    let r = htfl::render_content(&content, mode, &tag);
+    InlinePreview {
+        mode,
+        html: r.html,
+        issues: r.issues,
+    }
+}
+
 /// Bind (or unbind) the in-app MCP server to a project. Binding is explicit
 /// rather than automatic: exposing an HTTP endpoint that can rewrite the user's
 /// project should be something they turned on.
@@ -819,6 +848,7 @@ pub fn run() {
             read_plugins,
             read_plugin_script,
             write_text_file,
+            render_inline,
             preview_url,
             open_in_browser,
             open_terminal,
@@ -1063,6 +1093,83 @@ mod tests {
         assert!(html.contains(&format!("<p id=\"{p_id}\"")), "{html}");
         // <head> content gets no fixed id.
         assert!(!html.contains("<meta id="), "{html}");
+    }
+
+    #[test]
+    fn content_inline_tags_and_line_breaks_reach_the_page() {
+        let dir = std::env::temp_dir().join(format!(
+            "foling_inline_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        init_project(dir.to_string_lossy().into_owned(), None).unwrap();
+        let body = dir.join(HTML_ROOT).join("02_body");
+        let put = |rel: &str, yaml: &str| {
+            fs::create_dir_all(body.join(rel)).unwrap();
+            fs::write(body.join(rel).join(CONFIG_FILE), yaml).unwrap();
+        };
+        put("01_p", "content: |\n  一行目 <strong>強調</strong>\n  <a href=\"/x\">リンク</a> と <b>閉じない\n");
+        put("02_code", "content: \"<b>x</b>\"\n");
+        put("03_script", "content: \"if (a < b) {}\"\n");
+        let html = generate_html(&dir, false).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+
+        assert!(
+            html.contains("一行目 <strong>強調</strong><br /><a href=\"/x\">リンク</a> と &lt;b&gt;閉じない\n"),
+            "{html}"
+        );
+        assert!(html.contains("&lt;b&gt;x&lt;/b&gt;"), "code is shown as written: {html}");
+        // script content keeps its old treatment (no <br>, no markup).
+        assert!(html.contains("if (a &lt; b) {}"), "{html}");
+    }
+
+    #[test]
+    fn importing_keeps_sentences_with_inline_tags_in_order() {
+        let dir = std::env::temp_dir().join(format!(
+            "foling_import_inline_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("page.html");
+        fs::write(
+            &src,
+            "<!DOCTYPE html><html><head><title>t</title></head><body>\n\
+             <p id=\"hero\">Hello <b>world</b>,\n   how are <i>you</i>?<br>Bye</p>\n\
+             <ruby>漢字<rt>かんじ</rt></ruby>\n\
+             <div><p>block</p> text</div>\n\
+             <pre>  keep\n    this</pre>\n\
+             </body></html>",
+        )
+        .unwrap();
+        let out = dir.join("site");
+        import_html(src.to_string_lossy().into_owned(), out.to_string_lossy().into_owned()).unwrap();
+        let body = out.join(HTML_ROOT).join("02_body");
+        let p = read_node_config(&body.join("01_p")).unwrap();
+        assert_eq!(
+            p.content.as_deref(),
+            Some("Hello <b>world</b>, how are <i>you</i>?\nBye")
+        );
+        assert_eq!(p.id.as_deref(), Some("hero"));
+        assert!(!body.join("01_p").join("01_b").exists(), "inline tags are not folders");
+        let ruby = read_node_config(&body.join("02_ruby")).unwrap();
+        assert_eq!(ruby.content.as_deref(), Some("漢字<rt>かんじ</rt>"));
+        // A block child keeps the old shape: text, then folders.
+        assert!(body.join("03_div").join("01_p").is_dir());
+
+        let html = generate_html(&out, false).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+        assert!(
+            html.contains("<p id=\"hero\">\n      Hello <b>world</b>, how are <i>you</i>?<br />Bye\n"),
+            "{html}"
+        );
+        assert!(html.contains("漢字<rt>かんじ</rt>"), "{html}");
     }
 
     #[test]

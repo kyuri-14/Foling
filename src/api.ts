@@ -6,6 +6,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import type {
   ClassFile,
   ImageFolder,
+  InlinePreview,
   LoadedPlugin,
   McpStatus,
   ModuleDef,
@@ -145,6 +146,11 @@ export const readPluginScript = (pluginDir: string, script: string) =>
 
 export const writeTextFile = (dest: string, content: string) =>
   invoke<void>("write_text_file", { dest, content });
+
+// Render an element's content the way the build will (same Rust code), for
+// the editor's live preview.
+export const renderInline = (content: string, tag: string, inPre = false) =>
+  invoke<InlinePreview>("render_inline", { content, tag, inPre });
 
 export async function pickSaveTarget(
   defaultName: string,

@@ -78,7 +78,7 @@ disabled_inherits:        # 無効化する継承 CSS プロパティ(prop: init
 attributes:               # 任意の HTML 属性(キー: 値)
   data-key: value
   aria-label: メニュー
-content: |                # 要素内のテキスト
+content: |                # 要素内のテキスト(リンク・強調などのタグを書ける。改行は <br>)
   本文テキスト
 css: |                    # この要素自身の CSS(BASIN)
   padding: 1rem 2rem;
@@ -102,13 +102,41 @@ auto_id: e17              # 固定 id(Foling が自動で付与。編集しな�
 | `available_classes` | string[] | エディタの CLASSES 欄に出す候補集合。`classes` を含む上位集合。UI でのトグルは `classes` の出し入れのみ。 |
 | `disabled_inherits` | string[] | 親から継承される CSS のうち無効化したいプロパティ。ビルド時に `prop: initial;` としてインラインで出力。 |
 | `attributes` | map | 任意の HTML 属性。値には変数(`$name`)を使用可。 |
-| `content` | string | 要素内テキスト。変数を使用可。 |
+| `content` | string | 要素内テキスト。変数を使用可。リンク・強調・ルビなど一部のタグを書けます。改行はページでも改行(`<br>`)になります(→ §3.1)。 |
 | `css` | string | この要素の CSS 宣言群(セレクタ不要、宣言のみ)。変数を使用可。BASIN カスケードに参加。 |
 | `js` | string | この要素のスクリプト。ビルド時に IIFE で包まれ、`el` がこの要素(`data-htfl-id` 経由)に束縛される。 |
 | `links` | LinkEntry[] | `<link>` 要素。`rel` / `href`(必須)、`type`(任意)。 |
 | `auto_id` | string | `<body>` 内の要素の **固定 id**(`e17` の形)。Foling が自動で付与し、以後変わりません(→ §5.5)。手で編集しないでください。 |
 
+### 3.1 本文の書き方(文中のタグと改行)
+
+文の途中にリンクや強調を入れるために、`content` には次のタグを直接書けます。
+
+`a` `strong` `em` `b` `i` `u` `s` `mark` `small` `code` `kbd` `sub` `sup` `span` `br` `ruby` `rt` `rp`
+
+```yaml
+content: |
+  <mark>今日</mark>は<strong>晴れ</strong>です。
+  詳しくは<a href="https://example.com/">公式サイト</a>へ。<ruby>漢字<rt>かんじ</rt></ruby>
+```
+
+出力:
+
+```html
+<p id="e5"><mark>今日</mark>は<strong>晴れ</strong>です。<br />詳しくは<a href="https://example.com/">公式サイト</a>へ。<ruby>漢字<rt>かんじ</rt></ruby></p>
+```
+
+- **改行**はページでもそのまま改行(`<br />`)になります。末尾の改行は無視されます。
+- **属性**は、どのタグにも `class` / `id` / `title`、`a` にはさらに `href` / `target` / `rel` を付けられます。`href` に使えるのは `http` / `https` / `mailto` / `tel` と相対パス(`page.html`、`#e17` など)だけです。
+- **正しく閉じた上記のタグだけ**がタグとして扱われます。閉じていないタグ、使えない属性(`style`、`onclick` など)や URL を持つタグ、一覧にないタグ(文中で `<body>` に触れる場合など)は、すべて文字のまま表示されます。エディタのプレビューと MCP の `htfl_build` が、文字として表示されるタグを知らせます。
+- `code` / `kbd` タグの中は、書いたとおりに表示されます(タグの説明を書くため)。`code` / `kbd` / `samp` 要素の本文も同様です(改行は `<br>` になります)。
+- `script` / `style` / `title` / `textarea` / `option` 要素と、`pre` の中の本文は、従来どおり書いたとおりに出力されます(タグの解釈も改行の変換もしません)。
+- 本文中のタグには、要素ごとの CSS / SCRIPT は付けられません。見た目は `class` で付けてください。独自の CSS や JS が必要なものはツリーの要素にします。
+- **HTML インポート**では、文字と上記のタグだけでできている要素(リンクや太字を含む段落、ルビなど)は、タグを含む本文として取り込まれ、語順が保たれます。
+
 ---
+
+## 4. `htfl.yaml`(プロジェクト設定)---
 
 ## 4. `htfl.yaml`(プロジェクト設定)
 

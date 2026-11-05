@@ -26,6 +26,33 @@ versions follow [Semantic Versioning](https://semver.org/).
   `htfl_build` reports an id used twice in the page.
 
 ### Added
+- **Links, emphasis and ruby can be written inside an element's text.** A
+  sentence with a link or a bold word no longer has to be split into folders —
+  which could not even put text *after* the link. These tags may be written
+  straight into the content: `a` `strong` `em` `b` `i` `u` `s` `mark` `small`
+  `code` `kbd` `sub` `sup` `span` `br` `ruby` `rt` `rp`, with `class` / `id` /
+  `title`, and `href` / `target` / `rel` on links (http, https, mailto, tel or
+  relative addresses only). Only a well-formed tag from that list is markup;
+  anything else stays text, so existing content — and prose that mentions
+  `<body>` — renders as before, and a mistake shows up as the literal tag
+  rather than breaking the page. Inside `code` / `kbd` text is shown as written.
+- **A line break in an element's text is a line break on the page.** It used to
+  become a space, which in Japanese put a visible gap between two characters.
+  `script`, `style`, `title`, `textarea`, `option` and anything inside `<pre>`
+  are unchanged.
+- **The text editor helps write them.** A toolbar and shortcuts wrap the
+  selection: bold (`Ctrl/⌘+B`), emphasis (`I`), highlight (`Shift+H`), code
+  (`E`), link (`K`, asking for the address in the toolbar) and ruby (asking for
+  the reading). A live preview below shows the text as the page will, rendered
+  by the same code as the build, and lists any tag that will show up as text
+  and why. Links in the preview do not navigate the editor.
+- **HTML import keeps sentences in order.** An element made of text and the
+  tags above — a paragraph with a link, ruby — is imported as content with
+  those tags instead of one folder per tag, which put all the text first and the
+  tags after it. Source layout white space collapses as a browser would; full-
+  width spaces are kept.
+- MCP: `content` descriptions list the tags, `htfl_get_tree` previews show the
+  text a reader sees, and `htfl_build` reports tags that will show up as text.
 - **BASIN shows z-index level by level, and greys out the ones that do
   nothing.** The z-index row used to add the values of every ancestor into one
   number, which is not how a browser stacks anything. It now lists each level

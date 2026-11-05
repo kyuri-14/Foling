@@ -129,7 +129,7 @@ interface NodeConfig {
   available_classes: string[];
   disabled_inherits: string[];
   attributes: Record<string, string>;
-  content?: string;
+  content?: string;      // a / strong / mark などのタグを含むことがある。"\n" は改行(<br>)
   css?: string;
   js?: string;
   links: { rel: string; href: string; type?: string }[];
@@ -148,6 +148,8 @@ interface ProjectConfig {
 }
 interface ClassFile { name: string; content: string; }
 ```
+
+> `content` には本文用のタグ(`<a>`, `<strong>`, `<ruby>` など。[HTFL 仕様 §3.1](HTFL-SPEC.md))が含まれることがあり、改行は改行(`<br>`)として扱われます。
 
 > ⚠ `doc` 内の変数(`$name`)は **未置換** です。必要ならエクスポータ側で `projectConfig.variables` を使って置換してください。
 
