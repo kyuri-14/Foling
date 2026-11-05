@@ -26,6 +26,16 @@ versions follow [Semantic Versioning](https://semver.org/).
   `htfl_build` reports an id used twice in the page.
 
 ### Added
+- **BASIN shows z-index level by level, and greys out the ones that do
+  nothing.** The z-index row used to add the values of every ancestor into one
+  number, which is not how a browser stacks anything. It now lists each level
+  that takes part — `level 2 header: 100 › level 3 nav: 10 › self: 5` — which is
+  how the browser compares two elements: level by level from the top, like
+  version numbers. A z-index that has no effect (the element is not positioned
+  and its parent is not flex or grid, or the value is not a number) is grey and
+  struck through, with the reason on hover. Levels that cap z-index without
+  declaring one — `opacity`, `transform`, `filter`, `isolation` and the rest —
+  are shown in italics. Clicking a level lights up that element in the tree.
 - **The element editor has an id field.** Leave it empty to use the fixed id.
   It warns when the id is already used by another element, contains spaces, or
   starts with a digit. The tree shows each element's id at the end of its row:

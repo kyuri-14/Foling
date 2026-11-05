@@ -1384,6 +1384,32 @@ select {
   font-family: var(--font-mono);
 }
 
+/* z-index, level by level. A dead z-index is greyed out and struck through,
+   a level that caps z-index without declaring one is in italics. */
+.basin-zchain {
+  opacity: 1;
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 0;
+}
+.zchain-seg {
+  color: #4a2a5c;
+  padding: 0 3px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.zchain-seg:hover { background: rgba(123, 31, 162, 0.12); }
+.zchain-seg.is-self { font-weight: 700; }
+.zchain-seg.is-context { font-style: italic; color: #7a6a86; }
+.zchain-seg.is-ineffective,
+.basin-value.is-ineffective {
+  color: #9b9aa6;
+  text-decoration: line-through;
+  text-decoration-style: dotted;
+}
+.zchain-sep { color: #b9a4c7; padding: 0 1px; }
+
 .css-own {
   flex: 1;
   display: flex;

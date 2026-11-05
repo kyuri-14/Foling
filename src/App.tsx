@@ -69,6 +69,7 @@ import {
   snapshotHasScript,
 } from "./treeModel";
 import { countMatches, highlight, markMatches } from "./syntax";
+import { chainText, StackLevel, stackingChain } from "./zIndexChain";
 import {
   buildReport,
   capturedErrors,
@@ -682,9 +683,10 @@ function indentRowInList(rows: FlatRow[], idx: number): FlatRow[] | null {
 interface BasinDecl {
   prop: string;
   value: string;
-  /** "stacked" is used for z-index, which accumulates additively through
-   *  ancestors (Foling-specific behavior, not standard CSS). */
+  /** "stacked" is the z-index row, shown level by level (see zChain). */
   layer: "inherited" | "class" | "own" | "stacked";
+  /** z-index row only: every level that decides where this element stacks. */
+  zChain?: StackLevel[];
   sourceLabel: string;
   sourcePath?: string;
   classFile?: string;
@@ -698,31 +700,26 @@ interface BasinDecl {
   }>;
 }
 
-// Extract the local z-index for an element, looking at its own CSS first,
-// then its applied classes. Returns null if no z-index is defined here.
-function getLocalZIndex(
+// The winning value of each property for one element, as the built page
+// resolves it: its classes in stylesheet order, then its own css, then a
+// `style` typed into its attributes — later wins.
+function declLookup(
   config: NodeConfig,
-  classDefs: ClassDef[]
-): number | null {
-  const ownDecls = parseCssDeclarations(config.css);
-  for (const d of ownDecls) {
-    if (d.prop === "z-index") {
-      const n = parseInt(d.value, 10);
-      if (!Number.isNaN(n)) return n;
-    }
+  classDefs: ClassDef[],
+  vars: Record<string, string>
+): (prop: string) => string | undefined {
+  const names = new Set(
+    (config.classes ?? []).map((c) => (c.startsWith(".") ? c : "." + c))
+  );
+  const decls: CssDecl[] = [];
+  for (const def of classDefs) {
+    if (names.has(def.name)) decls.push(...parseCssDeclarations(def.properties));
   }
-  for (const cn of config.classes ?? []) {
-    const dot = cn.startsWith(".") ? cn : "." + cn;
-    for (const def of classDefs.filter((d) => d.name === dot)) {
-      for (const d of parseCssDeclarations(def.properties)) {
-        if (d.prop === "z-index") {
-          const n = parseInt(d.value, 10);
-          if (!Number.isNaN(n)) return n;
-        }
-      }
-    }
-  }
-  return null;
+  decls.push(...parseCssDeclarations(config.css));
+  decls.push(...parseCssDeclarations(config.attributes?.style));
+  const won = new Map<string, string>();
+  for (const d of decls) won.set(d.prop, substituteVarsInString(d.value, vars));
+  return (prop) => won.get(prop);
 }
 
 function substituteVarsInString(
@@ -843,7 +840,8 @@ interface SideInfo {
 // for shorthand vs longhand resolution (`padding: 30; padding-left: 60` vs
 // `padding-left: 60; padding: 30` produce different results).
 // Special rules:
-//   • z-index is *summed* across all ancestors + self (Foling-specific).
+//   • z-index is shown level by level — each ancestor's own value, and
+//     whether it applies — because that is how the browser compares it.
 //   • padding / margin: longhand and shorthand are consolidated into a
 //     single 4-value shorthand for display.
 function computeBasin(
@@ -1010,30 +1008,30 @@ function computeBasin(
     });
   }
 
-  // Step 4: z-index stacking.
-  const parts: string[] = [];
-  let sum = 0;
-  let zFound = false;
-  for (const ancestor of ancestorPath) {
-    const z = getLocalZIndex(ancestor.config, classDefs);
-    if (z !== null) {
-      sum += z;
-      zFound = true;
-      parts.push(`${ancestor.display_name || ancestor.name}=${z}`);
-    }
-  }
-  const selfZ = getLocalZIndex(selfConfig, classDefs);
-  if (selfZ !== null) {
-    sum += selfZ;
-    zFound = true;
-    parts.push(`self=${selfZ}`);
-  }
-  if (zFound) {
+  // Step 4: z-index, level by level. The browser never adds z-index values
+  // up: it ranks siblings inside each stacking context, top level first.
+  const chain = stackingChain([
+    ...ancestorPath.slice(1).map((a, i) => ({
+      depth: i + 1, // <body> is level 1 (ancestorPath[0] is <html>)
+      label: a.display_name || a.name,
+      path: a.path,
+      decl: declLookup(a.config ?? emptyConfig(), classDefs, vars),
+    })),
+    {
+      depth: ancestorPath.length,
+      label: "self",
+      self: true,
+      decl: declLookup(selfConfig, classDefs, vars),
+    },
+  ]);
+  if (chain) {
+    const me = chain[chain.length - 1];
     out.set("z-index", {
       prop: "z-index",
-      value: String(sum),
+      value: me.z ?? "auto",
       layer: "stacked",
-      sourceLabel: parts.join(" + "),
+      sourceLabel: chainText(chain),
+      zChain: chain,
     });
   }
 
@@ -5645,6 +5643,28 @@ function withFindMarks(text: string, query: string): React.ReactNode {
   return parts;
 }
 
+// Tooltip text for one level of the z-index chain.
+function zProblemText(lv: StackLevel): string {
+  return lv.problem === "invalid"
+    ? t("Not a valid z-index value — it is ignored.")
+    : t(
+        "No effect: z-index needs position (relative / absolute / fixed / sticky), or a flex / grid parent."
+      );
+}
+
+function zLevelTitle(lv: StackLevel): string {
+  if (lv.z != null && !lv.effective) return zProblemText(lv);
+  if (lv.z == null && lv.context) {
+    return t(
+      "Creates a stacking context ({what}): z-index values inside it only order things within it."
+    ).replace("{what}", lv.context);
+  }
+  if (lv.context === "z-index") {
+    return t("Effective — this level is a stacking context ranked by its z-index.");
+  }
+  return lv.z == null ? t("No z-index of its own.") : t("Effective.");
+}
+
 function CssEditor(props: {
   value: string;
   onChange: (v: string) => void;
@@ -6153,7 +6173,9 @@ function CssEditor(props: {
                 : b.layer === "class"
                 ? `Class: ${b.sourceLabel}${b.classFile ? ` (${b.classFile})` : ""}`
                 : b.layer === "stacked"
-                ? `Ancestors + self combined: ${b.sourceLabel}`
+                ? t(
+                    "Stacking order is compared level by level from the top, like version numbers. A grey z-index has no effect."
+                  )
                 : "This element's CSS";
             const tooltip = isMix
               ? [
@@ -6165,11 +6187,9 @@ function CssEditor(props: {
                 ].join("\n")
               : winnerDesc;
             const rowLayerClass = isMix ? "layer-mix" : `layer-${b.layer}`;
-            const pillText = isMix
-              ? "mix"
-              : b.layer === "stacked"
-              ? "stack Σ"
-              : b.layer;
+            const pillText = isMix ? "mix" : b.layer === "stacked" ? "stack" : b.layer;
+            const selfLevel = b.zChain?.[b.zChain.length - 1];
+            const valueDead = !!selfLevel && selfLevel.z != null && !selfLevel.effective;
             return (
               <div
                 key={i}
@@ -6182,12 +6202,46 @@ function CssEditor(props: {
                   {withFindMarks(b.prop, props.find ?? "")}
                 </span>
                 <span className="basin-colon">: </span>
-                <span className="basin-value">
+                <span
+                  className={`basin-value ${valueDead ? "is-ineffective" : ""}`}
+                  title={valueDead ? zProblemText(selfLevel!) : undefined}
+                >
                   {withFindMarks(b.value, props.find ?? "")};
                 </span>
-                <span className="basin-source">
-                  {withFindMarks(b.sourceLabel, props.find ?? "")}
-                </span>
+                {b.zChain ? (
+                  <span className="basin-source basin-zchain">
+                    {b.zChain.map((lv, k) => (
+                      <Fragment key={k}>
+                        {k > 0 && <span className="zchain-sep">›</span>}
+                        <span
+                          className={[
+                            "zchain-seg",
+                            lv.z != null && !lv.effective ? "is-ineffective" : "",
+                            lv.z == null && lv.context ? "is-context" : "",
+                            lv.self ? "is-self" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                          title={zLevelTitle(lv)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            props.onHighlightSource(lv.path ?? null);
+                          }}
+                        >
+                          {lv.self
+                            ? t("self")
+                            : `${t("level {n}").replace("{n}", String(lv.depth))} ${lv.label}`}
+                          {": "}
+                          {lv.z ?? (lv.context ? `(${lv.context})` : "auto")}
+                        </span>
+                      </Fragment>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="basin-source">
+                    {withFindMarks(b.sourceLabel, props.find ?? "")}
+                  </span>
+                )}
               </div>
             );
           })

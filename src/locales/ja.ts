@@ -82,6 +82,19 @@ export const ja: LocaleDict = {
 
   // Element editor modal
   "Edit element — line": "要素を編集 — 行",
+  "Stacking order is compared level by level from the top, like version numbers. A grey z-index has no effect.":
+    "重なり順は、バージョン番号のように上の階層から順に比べます。灰色の z-index は効いていません。",
+  self: "自身",
+  "level {n}": "{n}層",
+  "Not a valid z-index value — it is ignored.": "z-index として正しくない値のため無視されます。",
+  "No effect: z-index needs position (relative / absolute / fixed / sticky), or a flex / grid parent.":
+    "効いていません: z-index は position（relative / absolute / fixed / sticky）が必要です（親が flex / grid なら不要）。",
+  "Creates a stacking context ({what}): z-index values inside it only order things within it.":
+    "{what} により重なりの区切りになります。中の z-index は、この中だけの順番です。",
+  "Effective — this level is a stacking context ranked by its z-index.":
+    "効いています。この階層の z-index で順番が決まります。",
+  "No z-index of its own.": "自身の z-index はありません。",
+  "Effective.": "効いています。",
   "This id is used by more than one element.":
     "この id は複数の要素で使われています。",
   'id="{own}" (fixed id: {fixed})': 'id="{own}"（固定 id: {fixed}）',
